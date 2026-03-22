@@ -7,3 +7,7 @@ logs/
 dist/
 .pytest_cache/
 .DS_Store
+
+Research Docs/
+SRS_Project_Pantheon.md
+System_Design_Document.md
