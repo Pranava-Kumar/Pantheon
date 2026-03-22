@@ -34,7 +34,7 @@ class UpstoxClient:
             "LT": "NSE_EQ|INE018A01030",
         }
 
-    def get_historical_ohlcv(self, instrument_key: str, nse_symbol: str, days: int = 60) -> pd.DataFrame:
+    def get_historical_ohlcv(self, instrument_key: str, nse_symbol: str, days: int = 300) -> pd.DataFrame:
         try:
             today = datetime.datetime.now()
             from_date_obj = today - datetime.timedelta(days=days)
@@ -103,7 +103,10 @@ class UpstoxClient:
             ticker_sym = nse_symbol if nse_symbol.startswith("^") else (nse_symbol if nse_symbol.endswith(".NS") else f"{nse_symbol}.NS")
             ticker = yf.Ticker(ticker_sym)
             
-            df = ticker.history(period=f"{days}d", interval="1d")
+            # Multiply by 1.5 to convert trading days to calendar days
+            # Add 60 buffer for holidays. Minimum 400 to guarantee EMA200.
+            calendar_days = max(int(days * 1.5) + 60, 400)
+            df = ticker.history(period=f"{calendar_days}d", interval="1d")
             
             if df.empty:
                 return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
@@ -127,7 +130,7 @@ class UpstoxClient:
                 if c not in df.columns:
                     df[c] = 0.0 if c != "date" else pd.NaT
                     
-            return df
+            return df.tail(days).reset_index(drop=True)
             
         except Exception as e:
             self.logger.error(f"yfinance completely failed for {nse_symbol}: {str(e)}")

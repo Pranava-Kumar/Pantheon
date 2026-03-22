@@ -75,7 +75,7 @@ class ContextBuilder:
     def _get_price_data(self, symbol: str) -> dict:
         try:
             instrument_key = self.upstox.get_instrument_key(symbol)
-            df = self.upstox.get_historical_ohlcv(instrument_key, symbol, days=60)
+            df = self.upstox.get_historical_ohlcv(instrument_key, symbol, days=300)
             
             if df is None or df.empty:
                 return {"df": None, "technicals": {}, "current_price": None}
