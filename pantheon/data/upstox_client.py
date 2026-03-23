@@ -21,20 +21,62 @@ class UpstoxClient:
         
         self.logger = logger.bind(name="UpstoxClient")
         
-        self._instrument_map = {
-            "RELIANCE": "NSE_EQ|INE002A01018",
-            "TCS": "NSE_EQ|INE467B01029",
-            "WIPRO": "NSE_EQ|INE075A01022",
-            "INFY": "NSE_EQ|INE009A01021",
-            "HDFCBANK": "NSE_EQ|INE040A01034",
-            "ITC": "NSE_EQ|INE154A01025",
-            "TATAMOTORS": "NSE_EQ|INE155A01022",
-            "BAJFINANCE": "NSE_EQ|INE296A01024",
-            "SBIN": "NSE_EQ|INE062A01020",
-            "LT": "NSE_EQ|INE018A01030",
-        }
+        self._instrument_map = {}
+        self._load_instruments()
+
+    def _load_instruments(self) -> None:
+        import os
+        import json
+        cache_file = "upstox_instruments.json"
+        
+        if os.path.exists(cache_file):
+            modified = datetime.datetime.fromtimestamp(os.path.getmtime(cache_file))
+            if (datetime.datetime.now() - modified).days < 1:
+                try:
+                    with open(cache_file, "r") as f:
+                        self._instrument_map = json.load(f)
+                    return
+                except Exception as e:
+                    self.logger.warning(f"Failed to read instrument cache: {e}")
+                    
+        self.logger.info("Downloading master instrument list from Upstox (cached for 24h)...")
+        try:
+            import requests
+            import gzip
+            
+            url = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
+            resp = requests.get(url, timeout=30)
+            data = json.loads(gzip.decompress(resp.content))
+            
+            for item in data:
+                if item.get("segment") == "NSE_EQ":
+                    name = item.get("name")
+                    ts = item.get("trading_symbol", "").split('-')[0]
+                    ikey = item.get("instrument_key")
+                    
+                    if name: self._instrument_map[name] = ikey
+                    if ts:   self._instrument_map[ts]   = ikey
+                    
+            # Index fallbacks map locally
+            nifty_item = next((item for item in data if item.get("name") == "Nifty 50" and item.get("segment") == "NSE_INDEX"), None)
+            if nifty_item:
+                self._instrument_map["^NSEI"] = nifty_item["instrument_key"]
+            else:
+                self._instrument_map["^NSEI"] = "NSE_INDEX|Nifty 50"
+                
+            with open(cache_file, "w") as f:
+                json.dump(self._instrument_map, f)
+                
+            self.logger.info(f"Loaded {len(self._instrument_map)} NSE instruments.")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to fetch Upstox instruments: {e}")
 
     def get_historical_ohlcv(self, instrument_key: str, nse_symbol: str, days: int = 300) -> pd.DataFrame:
+        if instrument_key.startswith("YFINANCE_ONLY"):
+            self.logger.debug(f"Direct fallback to yfinance for {nse_symbol} (unmapped).")
+            return self._yfinance_fallback(nse_symbol, days)
+            
         try:
             today = datetime.datetime.now()
             from_date_obj = today - datetime.timedelta(days=days)
@@ -82,6 +124,9 @@ class UpstoxClient:
         return df[["date", "close"]]
 
     def get_current_price(self, instrument_key: str, nse_symbol: str) -> float:
+        if instrument_key.startswith("YFINANCE_ONLY"):
+            return self._yfinance_current_fallback(nse_symbol)
+            
         try:
             res = self.market_quote_api.get_ltp(instrument_key=instrument_key, api_version="2.0")
             if res and res.data and instrument_key in res.data:
@@ -90,13 +135,16 @@ class UpstoxClient:
             
         except Exception as e:
             self.logger.error(f"Upstox LTP failed for {nse_symbol} ({instrument_key}): {str(e)}. Falling back to yfinance.")
-            try:
-                ticker_sym = nse_symbol if nse_symbol.startswith("^") else (nse_symbol if nse_symbol.endswith(".NS") else f"{nse_symbol}.NS")
-                ticker = yf.Ticker(ticker_sym)
-                return float(ticker.fast_info.last_price)
-            except Exception as e2:
-                self.logger.error(f"yfinance fallback failed for {nse_symbol}: {str(e2)}")
-                return 0.0
+            return self._yfinance_current_fallback(nse_symbol)
+            
+    def _yfinance_current_fallback(self, nse_symbol: str) -> float:
+        try:
+            ticker_sym = nse_symbol if nse_symbol.startswith("^") else (nse_symbol if nse_symbol.endswith(".NS") else f"{nse_symbol}.NS")
+            ticker = yf.Ticker(ticker_sym)
+            return float(ticker.fast_info.last_price)
+        except Exception as e2:
+            self.logger.error(f"yfinance fallback failed for {nse_symbol}: {str(e2)}")
+            return 0.0
 
     def _yfinance_fallback(self, nse_symbol: str, days: int) -> pd.DataFrame:
         try:
@@ -140,6 +188,6 @@ class UpstoxClient:
         if nse_symbol in self._instrument_map:
             return self._instrument_map[nse_symbol]
             
-        placeholder = f"NSE_EQ|{nse_symbol}"
-        self.logger.warning(f"Instrument key not found for {nse_symbol}. Using placeholder: {placeholder}")
-        return placeholder
+        # Return a silent flag enforcing direct yfinance override 
+        # to block API traces and noisy ERROR logging dumps
+        return f"YFINANCE_ONLY|{nse_symbol}"

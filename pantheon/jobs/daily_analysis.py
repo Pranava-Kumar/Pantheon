@@ -12,19 +12,9 @@ from data.context_builder import ContextBuilder
 from db.session import SessionLocal, init_db
 from db.models import SignalRecord, PaperTrade
 from config.settings import settings
+from config import load_watchlist
 
-WATCHLIST = [
-    {"symbol": "WIPRO",     "company": "Wipro",          "sector": "IT"},
-    {"symbol": "TCS",       "company": "Tata Consultancy","sector": "IT"},
-    {"symbol": "INFY",      "company": "Infosys",         "sector": "IT"},
-    {"symbol": "RELIANCE",  "company": "Reliance",        "sector": "Energy"},
-    {"symbol": "HDFCBANK",  "company": "HDFC Bank",       "sector": "Banking"},
-    {"symbol": "ITC",       "company": "ITC",             "sector": "FMCG"},
-    {"symbol": "TATAMOTORS","company": "Tata Motors",     "sector": "Auto"},
-    {"symbol": "SBIN",      "company": "State Bank",      "sector": "Banking"},
-    {"symbol": "BAJFINANCE","company": "Bajaj Finance",   "sector": "Finance"},
-    {"symbol": "LT",        "company": "Larsen Toubro",   "sector": "Infra"},
-]
+
 
 async def detect_regime(upstox: UpstoxClient) -> str:
     try:
@@ -85,7 +75,8 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
     regime = await detect_regime(upstox)
     logger.info(f"Market regime: {regime}")
 
-    watchlist = [w for w in WATCHLIST if symbols is None or w["symbol"] in symbols]
+    watchlist = [w for w in load_watchlist()
+                 if symbols is None or w["symbol"] in symbols]
 
     results = []
     db = SessionLocal()

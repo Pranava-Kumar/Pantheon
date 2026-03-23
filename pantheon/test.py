@@ -1,2 +1,3 @@
-from jobs.paper_trading_tracker import print_gate_report
-print_gate_report()
+import yfinance as yf
+t = yf.Ticker('ONGC.NS')
+print(t.fast_info.last_price)

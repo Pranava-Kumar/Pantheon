@@ -15,6 +15,7 @@ from data.screener_client import ScreenerClient
 from data.news_client import NewsClient
 from data.context_builder import ContextBuilder
 from agents.graph import build_graph
+from config import load_watchlist
 
 # ANSI Escape Codes for formatting
 GREEN = '\033[92m'
@@ -25,7 +26,7 @@ BOLD = '\033[1m'
 
 async def main(symbols: list[str] | None):
     if not symbols:
-        symbols = ["WIPRO", "TCS", "INFY", "RELIANCE", "HDFCBANK"]
+        symbols = [item["symbol"] for item in load_watchlist()]
         
     print("Initializing clients...")
     upstox = UpstoxClient(access_token="dev_token")
