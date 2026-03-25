@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Implement and Refine MMCI Indicator Calculation**
+- [x] **Track: Implement and Refine MMCI Indicator Calculation**
   *Link: [./tracks/mmci_refinement_20260326/](./tracks/mmci_refinement_20260326/)*
