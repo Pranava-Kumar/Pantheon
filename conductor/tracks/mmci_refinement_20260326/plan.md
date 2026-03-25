@@ -1,6 +1,6 @@
 # Implementation Plan: Implement and Refine MMCI Indicator Calculation
 
-## Phase 1: Foundation & Technical Indicators
+## Phase 1: Foundation & Technical Indicators [checkpoint: cd9784a]
 
 ### 1.1: Environment & Baseline Verification
 - [x] Task: Verify existing MMCI infrastructure and current indicator outputs
@@ -15,7 +15,7 @@
     - [x] Write tests for MACD signal line and histogram accuracy
     - [x] Implement MACD and SMA/EMA logic in `pantheon/data/indicators.py`
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Technical Indicators' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Technical Indicators' (Protocol in workflow.md)
 
 ## Phase 2: Sentiment & Scoring Integration
 
