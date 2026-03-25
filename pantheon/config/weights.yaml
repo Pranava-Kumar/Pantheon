@@ -1,0 +1,21 @@
+# Market Mood Context Index (MMCI) Weight Configuration
+
+# Model Weights (must sum to ~1.0)
+models:
+  gemini_pro: 0.25
+  gemini_flash: 0.20
+  groq_qwen: 0.20
+  groq_llama: 0.20
+  groq_gpt: 0.15
+
+# Category Weights (used for weighted indicator aggregation if applicable)
+categories:
+  technicals: 0.40
+  fundamentals: 0.30
+  sentiment: 0.30
+
+# Learning Parameters for WeightManager
+learning:
+  rate: 0.05
+  floor: 0.05
+  ceiling: 0.40

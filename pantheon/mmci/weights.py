@@ -1,3 +1,23 @@
+import yaml
+from pathlib import Path
+
+# Path to the weights configuration file
+WEIGHTS_FILE = Path(__file__).resolve().parent.parent / "config" / "weights.yaml"
+
+INITIAL_CATEGORY_WEIGHTS = {
+    "technicals": 0.40,
+    "fundamentals": 0.30,
+    "sentiment": 0.30
+}
+
+def load_config_weights():
+    try:
+        with open(WEIGHTS_FILE, "r") as f:
+            config = yaml.safe_load(f)
+            return config.get("models", INITIAL_WEIGHTS), config.get("categories", INITIAL_CATEGORY_WEIGHTS)
+    except Exception:
+        return INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+
 INITIAL_WEIGHTS = {
   "gemini_pro": 0.25, 
   "gemini_flash": 0.20,
@@ -10,11 +30,20 @@ WEIGHT_FLOOR = 0.05
 WEIGHT_CEILING = 0.40
 
 class WeightManager:
-    def __init__(self, weights: dict = None):
-        self._w = dict(weights or INITIAL_WEIGHTS)
+    def __init__(self, weights: dict = None, category_weights: dict = None):
+        if weights is None or category_weights is None:
+            w, cw = load_config_weights()
+            self._w = w if weights is None else dict(weights)
+            self._cw = cw if category_weights is None else dict(category_weights)
+        else:
+            self._w = dict(weights)
+            self._cw = dict(category_weights)
 
     def get_weights(self) -> dict:
         return dict(self._w)
+
+    def get_category_weights(self) -> dict:
+        return dict(self._cw)
 
     def update(self, model_signals: list[dict], actual_direction: str) -> dict:
         for s in model_signals:
@@ -34,7 +63,33 @@ class WeightManager:
             self._w = {k: v/total for k, v in self._w.items()}
 
     def _apply_bounds(self):
+        """
+        Strictly enforces floor and ceiling bounds while maintaining sum-to-1.
+        Uses an iterative approach to redistribute excess weight.
+        """
         n = len(self._w)
-        if any(v < WEIGHT_FLOOR or v > WEIGHT_CEILING for v in self._w.values()):
-            uniform = 1.0 / n
-            self._w = {k: 0.7*v + 0.3*uniform for k, v in self._w.items()}
+        if n == 0: return
+        
+        # Ensure floor * n <= 1.0 and ceiling * n >= 1.0
+        # Otherwise, the bounds are mathematically impossible
+        effective_floor = min(WEIGHT_FLOOR, 1.0/n)
+        effective_ceiling = max(WEIGHT_CEILING, 1.0/n)
+
+        for _ in range(10): # Iterative redistribution
+            total = sum(self._w.values())
+            if abs(total - 1.0) < 1e-6:
+                # Check if all in bounds
+                if all(effective_floor - 1e-9 <= v <= effective_ceiling + 1e-9 for v in self._w.values()):
+                    break
+            
+            # Clamp
+            new_w = {}
+            for k, v in self._w.items():
+                new_w[k] = max(effective_floor, min(effective_ceiling, v))
+            
+            # Normalize
+            new_total = sum(new_w.values())
+            if new_total > 0:
+                self._w = {k: v/new_total for k, v in new_w.items()}
+            else:
+                self._w = {k: 1.0/n for k in new_w}
