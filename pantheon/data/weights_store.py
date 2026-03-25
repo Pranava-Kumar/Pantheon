@@ -1,31 +1,64 @@
-import json
-import os
-from loguru import logger
+"""
+Persistent model weight storage using Neon PostgreSQL.
 
-WEIGHTS_FILE = "weights.json"
+Replaces the previous local weights.json implementation.
+GitHub Actions runners have ephemeral filesystems, so weights
+must be stored in the database to persist across runs.
+"""
+
+from datetime import datetime
+from loguru import logger
+from sqlmodel import select
+
+from db.session import SessionLocal, init_db
+from db.models import ModelWeight
 
 DEFAULT_WEIGHTS = {
     "gemini_pro": 0.25,
     "gemini_flash": 0.20,
     "groq_qwen": 0.20,
     "groq_llama": 0.20,
-    "groq_gpt": 0.15
+    "groq_gpt": 0.15,
 }
 
+
 def load_weights() -> dict:
-    if not os.path.exists(WEIGHTS_FILE):
-        return DEFAULT_WEIGHTS
+    """Load current model weights from the database.
+    Falls back to DEFAULT_WEIGHTS if table is empty or on error."""
     try:
-        with open(WEIGHTS_FILE, "r") as f:
-            return json.load(f)
+        db = SessionLocal()
+        try:
+            rows = db.exec(select(ModelWeight)).all()
+            if not rows:
+                return dict(DEFAULT_WEIGHTS)
+            return {row.model_id: row.weight for row in rows}
+        finally:
+            db.close()
     except Exception as e:
-        logger.error(f"Failed to load weights: {e}")
-        return DEFAULT_WEIGHTS
+        logger.error(f"Failed to load weights from DB: {e}")
+        return dict(DEFAULT_WEIGHTS)
+
 
 def save_weights(weights: dict) -> None:
+    """Upsert model weights into the database."""
     try:
-        with open(WEIGHTS_FILE, "w") as f:
-            json.dump(weights, f, indent=2)
-        logger.info("Weights saved")
+        db = SessionLocal()
+        try:
+            for model_id, weight in weights.items():
+                existing = db.get(ModelWeight, model_id)
+                if existing:
+                    existing.weight = weight
+                    existing.updated_at = datetime.utcnow()
+                    db.add(existing)
+                else:
+                    db.add(ModelWeight(
+                        model_id=model_id,
+                        weight=weight,
+                        updated_at=datetime.utcnow(),
+                    ))
+            db.commit()
+            logger.info("Weights saved to database")
+        finally:
+            db.close()
     except Exception as e:
-        logger.error(f"Failed to save weights: {e}")
+        logger.error(f"Failed to save weights to DB: {e}")

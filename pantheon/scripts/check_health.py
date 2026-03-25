@@ -20,7 +20,7 @@ def main():
         db = SessionLocal()
         db.execute(text("SELECT 1"))
         db.close()
-        print("[OK] Database — SQLite connected")
+        print("[OK] Database — PostgreSQL (Neon) connected")
         passed += 1
     except Exception as e:
         print(f"[FAIL] Database — {e}")

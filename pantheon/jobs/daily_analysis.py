@@ -13,6 +13,13 @@ from db.session import SessionLocal, init_db
 from db.models import SignalRecord, PaperTrade
 from config.settings import settings
 from config import load_watchlist
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn=settings.SENTRY_DSN if hasattr(settings, "SENTRY_DSN") else "",
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+)
 
 
 
@@ -113,3 +120,13 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
 
     logger.info(f"Analysis complete. {len(results)} signals stored.")
     return results
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+
+    # Ensure project root is on sys.path for CI environments
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+    asyncio.run(run_daily_analysis())

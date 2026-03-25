@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import asyncio
 from datetime import datetime, timedelta, date
 from loguru import logger
-from sqlalchemy import func
+from sqlmodel import select
 
 from db.session import SessionLocal
 from db.models import SignalRecord, PaperTrade
@@ -46,11 +46,12 @@ async def _process_update_for_date(target_date: date) -> dict:
         start_t = datetime.combine(target_date, datetime.min.time())
         end_t = start_t + timedelta(days=1)
         
-        records = db.query(SignalRecord).filter(
+        stmt = select(SignalRecord).where(
             SignalRecord.outcome == None,
             SignalRecord.timestamp >= start_t,
             SignalRecord.timestamp < end_t
-        ).all()
+        )
+        records = db.exec(stmt).all()
 
         if not records:
             logger.info("No signals to evaluate for this date")
@@ -78,8 +79,11 @@ async def _process_update_for_date(target_date: date) -> dict:
                 record.outcome_date = datetime.utcnow()
 
                 # Update paper trade if exists
-                trade = db.query(PaperTrade).filter_by(
-                    signal_run_id=record.run_id, is_open=True
+                trade = db.exec(
+                    select(PaperTrade).where(
+                        PaperTrade.signal_run_id == record.run_id,
+                        PaperTrade.is_open == True
+                    )
                 ).first()
                 
                 if trade:

@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     FINNHUB_API_KEY: str = ""
     SCREENER_EMAIL: str = ""
     SCREENER_PASSWORD: str = ""
+    SENTRY_DSN: str = ""
 
     # MMCI Algorithm parameters
     DISSENT_THRESHOLD: float = 0.15

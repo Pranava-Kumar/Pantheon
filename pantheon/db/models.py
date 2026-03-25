@@ -1,42 +1,75 @@
-from sqlalchemy import Column, String, Float, Boolean, Integer, Text, DateTime
-from sqlalchemy.dialects.sqlite import JSON
-from sqlalchemy.orm import declarative_base
+"""
+Database ORM models using SQLModel.
+All three tables: SignalRecord, PaperTrade, TokenRecord.
+"""
+
+from sqlmodel import Field, SQLModel
+from sqlalchemy import Column, JSON
+from typing import Optional
 from datetime import datetime
 import uuid
 
-Base = declarative_base()
 
-class SignalRecord(Base):
+class SignalRecord(SQLModel, table=True):
     __tablename__ = "signals"
-    run_id          = Column(String(36), primary_key=True,
-                             default=lambda: str(uuid.uuid4()))
-    symbol          = Column(String(20), nullable=False, index=True)
-    timestamp       = Column(DateTime, nullable=False, default=datetime.utcnow)
-    direction       = Column(String(4), nullable=False)
-    consensus_score = Column(Float, nullable=False)
-    dissent_score   = Column(Float, nullable=False)
-    dissent_flag    = Column(Boolean, nullable=False, default=False)
-    market_regime   = Column(String(10), nullable=False)
-    suggested_alloc = Column(Float, nullable=False)
-    risk_level      = Column(Integer, nullable=False)
-    models_used     = Column(Integer, nullable=False)
-    model_signals   = Column(JSON, nullable=False)
-    reasoning       = Column(Text, nullable=False)
-    outcome         = Column(String(4), nullable=True)
-    outcome_date    = Column(DateTime, nullable=True)
-    entry_price     = Column(Float, nullable=True)
 
-class PaperTrade(Base):
+    run_id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    symbol: str = Field(index=True)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+    direction: str
+    consensus_score: float
+    dissent_score: float
+    dissent_flag: bool = Field(default=False)
+    market_regime: str
+    suggested_alloc: float
+    risk_level: int
+    models_used: int
+
+    model_signals: dict = Field(default_factory=dict, sa_column=Column(JSON))
+    reasoning: str
+
+    outcome: Optional[str] = Field(default=None)
+    outcome_date: Optional[datetime] = Field(default=None)
+    entry_price: Optional[float] = Field(default=None)
+
+
+class PaperTrade(SQLModel, table=True):
     __tablename__ = "paper_trades"
-    id              = Column(String(36), primary_key=True,
-                             default=lambda: str(uuid.uuid4()))
-    signal_run_id   = Column(String(36), nullable=False)
-    symbol          = Column(String(20), nullable=False)
-    direction       = Column(String(4), nullable=False)
-    entry_price     = Column(Float, nullable=False)
-    entry_date      = Column(DateTime, nullable=False, default=datetime.utcnow)
-    exit_price      = Column(Float, nullable=True)
-    exit_date       = Column(DateTime, nullable=True)
-    pnl_pct         = Column(Float, nullable=True)
-    regime_at_entry = Column(String(10), nullable=False)
-    is_open         = Column(Boolean, nullable=False, default=True)
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    signal_run_id: str
+    symbol: str
+    direction: str
+    entry_price: float
+    entry_date: datetime = Field(default_factory=datetime.utcnow)
+
+    exit_price: Optional[float] = None
+    exit_date: Optional[datetime] = None
+    pnl_pct: Optional[float] = None
+
+    regime_at_entry: str
+    is_open: bool = Field(default=True)
+
+
+class TokenRecord(SQLModel, table=True):
+    __tablename__ = "tokens"
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    provider: str = Field(index=True)
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = Field(default=True)
+    metadata_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
+
+
+class ModelWeight(SQLModel, table=True):
+    """Persistent model weight storage — replaces local weights.json for CI compatibility."""
+    __tablename__ = "model_weights"
+
+    model_id: str = Field(primary_key=True)   # e.g. "gemini_pro", "groq_qwen"
+    weight: float = Field(default=0.20)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
