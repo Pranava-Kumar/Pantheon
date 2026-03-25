@@ -31,7 +31,7 @@
 
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Sentiment & Scoring Integration' (Protocol in workflow.md) [3b64d28]
 
-## Phase 3: Validation & Quality Assurance
+## Phase 3: Validation & Quality Assurance [checkpoint: 6e06f8f]
 
 ### 3.1: Comprehensive Testing & Coverage
 - [x] Task: Verify total MMCI score calculation
@@ -43,4 +43,4 @@
     - [x] Test the system with incomplete market/news data to ensure graceful degradation of scores [9c93164]
     - [x] Perform a final analysis run and verify results against the dashboard (Streamlit) [9c93164]
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Validation & Quality Assurance' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Validation & Quality Assurance' (Protocol in workflow.md) [6e06f8f]
