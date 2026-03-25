@@ -68,3 +68,5 @@ pantheon/test.py
 pantheon/fundamentals_cache.db
 pantheon/news_cache.db
 pantheon/weights.json
+
+GITHUB_SECRETS_GUIDE.md

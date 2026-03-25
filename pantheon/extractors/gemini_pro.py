@@ -58,20 +58,36 @@ class GeminiProExtractor(BaseExtractor):
                         max_tokens=1024,
                     ),
                 ))
+        self._preferred_idx = 0
+        self._failures = [0] * len(self._models)
+        self._max_consecutive_failures = 2
 
     async def _call_model(self, prompt: str) -> str:
         last_error = None
-        for model_name, llm in self._models:
+        
+        for idx in range(self._preferred_idx, len(self._models)):
+            # If a model has failed too many consecutive times, permanently skip it 
+            # (unless it's the absolute last resort fallback)
+            if self._failures[idx] >= self._max_consecutive_failures and idx != len(self._models) - 1:
+                if self._preferred_idx == idx:
+                    logger.info(f"[{self.model_id}] Automatically rerouting permanently past {self._models[idx][0]}")
+                    self._preferred_idx += 1
+                continue
+
+            model_name, llm = self._models[idx]
+            
             try:
                 response = await llm.ainvoke(prompt)
                 if response and response.content:
                     logger.debug(f"[{self.model_id}] Success with {model_name}")
+                    self._failures[idx] = 0 # reset on success
                     return response.content
                 raise ValueError(f"{model_name} returned empty response")
             except Exception as e:
                 last_error = e
+                self._failures[idx] += 1
                 logger.warning(
-                    f"[{self.model_id}] {model_name} failed: {e!s:.120}, "
+                    f"[{self.model_id}] {model_name} failed ({self._failures[idx]}/{self._max_consecutive_failures}): {e!s:.120}, "
                     f"trying next fallback..."
                 )
 

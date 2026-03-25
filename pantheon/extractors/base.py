@@ -45,12 +45,15 @@ class BaseExtractor(ABC):
                 raw = await self._call_model(prompt)
                 signal = self._parse(raw)
                 signal.latency_ms = int((time.monotonic() - start_time) * 1000)
+                logger.debug(f"[{self.model_id}] Generated {signal.direction} signal (conf: {signal.confidence:.2f})")
                 return signal
             except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"[{self.model_id}] Parsing error (attempt {attempt}/3): {e!s:.100}")
                 if attempt == 3:
                     return self._failed(str(e), start_time)
                 await asyncio.sleep(2 ** attempt)
             except Exception as e:
+                logger.error(f"[{self.model_id}] Fatal extraction error: {e!s:.200}")
                 return self._failed(str(e), start_time)
         return self._failed("max retries exceeded", start_time)
 
