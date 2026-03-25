@@ -20,14 +20,14 @@
 ## Phase 2: Sentiment & Scoring Integration
 
 ### 2.1: News Sentiment Mapping
-- [ ] Task: Map extractor outputs to MMCI sentiment indicators
-    - [ ] Write tests to verify the flow from `gemini_pro.py`/`groq_llama.py` output to MMCI input
-    - [ ] Update `pantheon/mmci/scoring.py` to ingest extracted news data and assign sentiment values
+- [x] Task: Map extractor outputs to MMCI sentiment indicators
+    - [x] Write tests to verify the flow from `gemini_pro.py`/`groq_llama.py` output to MMCI input
+    - [x] Update `pantheon/mmci/scoring.py` to ingest extracted news data and assign sentiment values
 
 ### 2.2: Refine Weighting & Final Scoring
-- [ ] Task: Update scoring logic to respect `weights.yaml`
-    - [ ] Write tests for weighted score calculation across different indicator categories
-    - [ ] Refine `pantheon/mmci/scoring.py` to dynamically apply weights from `pantheon/mmci/weights.py`
+- [x] Task: Update scoring logic to respect `weights.yaml`
+    - [x] Write tests for weighted score calculation across different indicator categories [1e07b6f]
+    - [x] Refine `pantheon/mmci/scoring.py` to dynamically apply weights from `pantheon/mmci/weights.py` [1e07b6f]
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Sentiment & Scoring Integration' (Protocol in workflow.md)
 
