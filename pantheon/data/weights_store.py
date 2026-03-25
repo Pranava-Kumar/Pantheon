@@ -12,31 +12,24 @@ from sqlmodel import select
 
 from db.session import SessionLocal, init_db
 from db.models import ModelWeight
-
-DEFAULT_WEIGHTS = {
-    "gemini_pro": 0.25,
-    "gemini_flash": 0.20,
-    "groq_qwen": 0.20,
-    "groq_llama": 0.20,
-    "groq_gpt": 0.15,
-}
-
+from mmci.weights import load_config_weights
 
 def load_weights() -> dict:
     """Load current model weights from the database.
-    Falls back to DEFAULT_WEIGHTS if table is empty or on error."""
+    Falls back to config weights if table is empty or on error."""
+    config_weights = load_config_weights()
     try:
         db = SessionLocal()
         try:
             rows = db.exec(select(ModelWeight)).all()
             if not rows:
-                return dict(DEFAULT_WEIGHTS)
+                return dict(config_weights)
             return {row.model_id: row.weight for row in rows}
         finally:
             db.close()
     except Exception as e:
         logger.error(f"Failed to load weights from DB: {e}")
-        return dict(DEFAULT_WEIGHTS)
+        return dict(config_weights)
 
 
 def save_weights(weights: dict) -> None:

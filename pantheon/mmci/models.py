@@ -19,6 +19,12 @@ class MarketRegime(str, Enum):
     BEAR = "BEAR"
     SIDEWAYS = "SIDEWAYS"
 
+class SentimentIndicator(BaseModel):
+    score: float = 0.0  # -1.0 to 1.0
+    label: str = "NEUTRAL" # BULLISH, BEARISH, NEUTRAL
+    news_count: int = 0
+    confidence: float = 0.0
+
 class TechnicalIndicators(BaseModel):
     rsi_14: Optional[float] = None
     macd_line: Optional[float] = None
@@ -70,6 +76,7 @@ class MCISignal(BaseModel):
     symbol: str
     direction: str
     consensus_score: float
+    sentiment_score: float = 0.0
     dissent_score: float
     dissent_flag: bool
     market_regime: str

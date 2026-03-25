@@ -31,13 +31,10 @@ WEIGHT_CEILING = 0.40
 
 class WeightManager:
     def __init__(self, weights: dict = None, category_weights: dict = None):
-        if weights is None or category_weights is None:
-            w, cw = load_config_weights()
-            self._w = w if weights is None else dict(weights)
-            self._cw = cw if category_weights is None else dict(category_weights)
-        else:
-            self._w = dict(weights)
-            self._cw = dict(category_weights)
+        # Always get defaults
+        w_cfg, cw_cfg = load_config_weights()
+        self._w = dict(weights) if weights is not None else dict(w_cfg)
+        self._cw = dict(category_weights) if category_weights is not None else dict(cw_cfg)
 
     def get_weights(self) -> dict:
         return dict(self._w)

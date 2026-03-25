@@ -20,6 +20,12 @@ from .weights import INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
 def compute_technical_score(indicators: dict) -> float:
     """
     Maps raw technical indicators to a sentiment score (-1.0 to 1.0).
+    
+    Args:
+        indicators: A dictionary of technical indicator values (e.g., rsi_14, macd_hist).
+        
+    Returns:
+        A float representing the aggregate technical sentiment from -1.0 to 1.0.
     """
     score = 0.0
     count = 0
@@ -47,6 +53,12 @@ def compute_technical_score(indicators: dict) -> float:
 def compute_fundamental_score(data: dict) -> float:
     """
     Maps fundamental data to a sentiment score (-1.0 to 1.0).
+    
+    Args:
+        data: A dictionary containing fundamental metrics (e.g., roe, revenue_growth).
+        
+    Returns:
+        A float representing the aggregate fundamental sentiment from -1.0 to 1.0.
     """
     score = 0.0
     count = 0
