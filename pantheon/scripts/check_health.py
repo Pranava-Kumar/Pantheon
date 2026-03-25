@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import text
 from config.settings import settings
 
+
 def main():
     print("Running System Health Checks...\n")
     passed = 0
