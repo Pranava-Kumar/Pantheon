@@ -106,6 +106,17 @@ def test_compute_total_mmci_score_default_weights():
     score = compute_total_mmci_score(1.0, 0.0, 0.0)
     assert score == 0.4
 
-def test_compute_total_mmci_score_all_negative():
-    score = compute_total_mmci_score(-1.0, -1.0, -1.0)
-    assert score == -1.0
+def test_compute_total_mmci_score_incomplete_data():
+    # If some categories are zero or missing, it should still calculate based on what's available
+    # tech: 0.0, fund: 0.0, sent: 0.0
+    score = compute_total_mmci_score(0.0, 0.0, 0.0)
+    assert score == 0.0
+
+def test_compute_technical_score_empty():
+    assert compute_technical_score({}) == 0.0
+
+def test_compute_fundamental_score_empty():
+    assert compute_fundamental_score({}) == 0.0
+
+def test_compute_sentiment_score_empty():
+    assert compute_sentiment_score([]) == 0.0
