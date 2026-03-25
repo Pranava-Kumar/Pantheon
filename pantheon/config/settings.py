@@ -6,6 +6,7 @@ in the project. This configuration uses pydantic-settings to automatically load
 values from the .env file.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
@@ -26,6 +27,16 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     DATABASE_URL_ASYNC: str
+
+    @field_validator("DATABASE_URL", "DATABASE_URL_ASYNC", mode="before")
+    @classmethod
+    def strip_quotes(cls, v: str) -> str:
+        """Strip surrounding quotes that GitHub Secrets may preserve from .env values."""
+        if isinstance(v, str):
+            v = v.strip()
+            if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+                v = v[1:-1]
+        return v
 
     # LangSmith
     LANGSMITH_TRACING: str = "true"
