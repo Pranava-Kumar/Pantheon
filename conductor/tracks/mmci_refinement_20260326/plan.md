@@ -17,7 +17,7 @@
 
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Foundation & Technical Indicators' (Protocol in workflow.md)
 
-## Phase 2: Sentiment & Scoring Integration
+## Phase 2: Sentiment & Scoring Integration [checkpoint: 3b64d28]
 
 ### 2.1: News Sentiment Mapping
 - [x] Task: Map extractor outputs to MMCI sentiment indicators
@@ -29,7 +29,7 @@
     - [x] Write tests for weighted score calculation across different indicator categories [1e07b6f]
     - [x] Refine `pantheon/mmci/scoring.py` to dynamically apply weights from `pantheon/mmci/weights.py` [1e07b6f]
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Sentiment & Scoring Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Sentiment & Scoring Integration' (Protocol in workflow.md) [3b64d28]
 
 ## Phase 3: Validation & Quality Assurance
 
