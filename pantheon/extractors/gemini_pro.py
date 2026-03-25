@@ -20,13 +20,13 @@ from loguru import logger
 
 # Ordered fallback chain — each entry: (model_name, provider)
 _FALLBACK_CHAIN = [
-    ("gemini-2.5-flash",        "google"),
-    ("gemini-2.5-flash-latest", "google"),
-    ("gemini-3-pro",            "google"),
-    ("gemini-3-flash",          "google"),
-    ("gemini-3.1-pro",          "google"),
-    ("gemini-3.1-flash",        "google"),
-    ("openrouter/auto",         "openrouter"),
+    ("gemini-2.5-flash",              "google"),
+    ("gemini-2.5-pro",                "google"),
+    ("gemini-3.0-pro-preview",        "google"),
+    ("gemini-3.0-flash-preview",      "google"),
+    ("gemini-3.1-pro-preview",        "google"),
+    ("gemini-3.1-flash-preview",      "google"),
+    ("openrouter/auto",               "openrouter"),
 ]
 
 
@@ -44,6 +44,7 @@ class GeminiProExtractor(BaseExtractor):
                         google_api_key=settings.GOOGLE_API_KEY,
                         temperature=0.1,
                         max_output_tokens=1024,
+                        max_retries=1,
                     ),
                 ))
             else:  # openrouter

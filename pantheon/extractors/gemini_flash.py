@@ -11,7 +11,8 @@ class GeminiFlashExtractor(BaseExtractor):
             google_api_key=settings.GOOGLE_API_KEY,
             thinking_budget=0,
             temperature=0.1,
-            max_output_tokens=1024
+            max_output_tokens=1024,
+            max_retries=1
         )
 
     async def _call_model(self, prompt: str) -> str:

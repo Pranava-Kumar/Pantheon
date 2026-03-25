@@ -114,7 +114,8 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
             except Exception as e:
                 logger.error(f"{sym} analysis failed: {e}")
                 
-            await asyncio.sleep(5)
+            # 15s delay to stay under Google free tier 15 RPM limit (2 reqs/stock = 4 reqs/min max)
+            await asyncio.sleep(15)
     finally:
         db.close()
 
