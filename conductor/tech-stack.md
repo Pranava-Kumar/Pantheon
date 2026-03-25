@@ -15,10 +15,12 @@
 - **pandas & pandas-ta-classic:** High-performance data manipulation and technical indicator calculations.
 - **yfinance:** Supporting global financial data and auxiliary market metrics.
 
-## Data Persistence & Integrity
-- **PostgreSQL (Asyncpg/Psycopg2):** Primary relational database for market data, watchlists, and scores.
-- **SQLModel (SQLAlchemy):** Modern ORM for high data integrity and Python-native database interactions.
-- **Alembic:** Database migrations management for maintaining a robust schema.
+## Data Persistence & Configuration
+- PostgreSQL (Asyncpg/Psycopg2): Primary relational database for market data, watchlists, and scores.
+- SQLModel (SQLAlchemy): Modern ORM for high data integrity and Python-native database interactions.
+- Alembic: Database migrations management for maintaining a robust schema.
+- PyYAML: Configuration management for model and category weights.
+
 
 ## Infrastructure & Operations
 - **Uvicorn:** ASGI server for high-performance FastAPI deployment.
