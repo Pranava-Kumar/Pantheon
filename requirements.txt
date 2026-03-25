@@ -2,7 +2,6 @@ langgraph
 langchain
 langchain-google-genai
 langchain-openai
-langgraph-checkpoint-sqlite
 pydantic
 pydantic-settings
 upstox-python-sdk
@@ -26,4 +25,8 @@ pytest
 pytest-asyncio
 yfinance
 jugaad-data
-aiosqlite
+pyyaml
+sqlmodel>=0.0.21
+sentry-sdk>=2.0.0
+fastapi>=0.110.0
+uvicorn>=0.29.0

@@ -1,13 +1,70 @@
-__pycache__
-*.pyc
-.env
-.venv/
-logs/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
 *.egg-info/
 dist/
-.pytest_cache/
+build/
+*.egg
+.agents/
+skills-lock.json
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables — NEVER commit
+.env
+.env.local
+.env.production
+
+# Local database files — these are dev-only, Neon replaces them
+pantheon/*.db
+pantheon/fundamentals_cache.db
+pantheon/news_cache.db
+pantheon/pantheon.db
+*.db
+
+# Generated/cached data files
+pantheon/upstox_instruments.json
+weights.json
+
+# Test files — temp scripts only
+pantheon/test.py
+test.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+Antigravity/
+
+# OS
 .DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/*.log
+*.log
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+*.spec
 
 Research Docs/
 SRS_Project_Pantheon.md
 System_Design_Document.md
+
+pantheon/test.py
+pantheon/fundamentals_cache.db
+pantheon/news_cache.db
+pantheon/weights.json

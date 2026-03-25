@@ -1,0 +1,72 @@
+name: Pantheon MMCI Daily Run
+
+on:
+  schedule:
+    # 10:30 UTC = 16:00 IST (Mon-Fri, after NSE market close)
+    - cron: '30 10 * * 1-5'
+  workflow_dispatch:  # Manual trigger from GitHub UI
+
+env:
+  PYTHONPATH: ${{ github.workspace }}/pantheon
+
+jobs:
+  daily_analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MMCI Daily Analysis
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_ASYNC: ${{ secrets.DATABASE_URL_ASYNC }}
+          SCREENER_EMAIL: ${{ secrets.SCREENER_EMAIL }}
+          SCREENER_PASSWORD: ${{ secrets.SCREENER_PASSWORD }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_TRACING: "true"
+          LANGSMITH_ENDPOINT: "https://api.smith.langchain.com"
+          LANGSMITH_PROJECT: "Project Pantheon"
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: python pantheon/jobs/daily_analysis.py
+
+  # T+5 weight update — evaluates signals from 5 trading days ago
+  weight_update:
+    runs-on: ubuntu-latest
+    needs: daily_analysis
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run T+5 Weight Updater
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_ASYNC: ${{ secrets.DATABASE_URL_ASYNC }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: python pantheon/jobs/weight_updater.py
