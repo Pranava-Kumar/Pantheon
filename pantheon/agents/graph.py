@@ -5,10 +5,12 @@ from agents.state import PantheonState
 from extractors import get_all_extractors
 from extractors.prompts import build_all_prompts
 from mmci.scoring import (compute_dissent_score, compute_consensus_score,
+                           compute_sentiment_score, compute_technical_score,
+                           compute_fundamental_score, compute_total_mmci_score,
                            determine_direction, compute_position_size,
                            compute_risk_level, synthesize_reasoning,
                            determine_consensus_timeframe)
-from mmci.weights import WeightManager, INITIAL_WEIGHTS
+from mmci.weights import WeightManager, INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
 from mmci.models import ModelID, Direction, MarketRegime
 from data.weights_store import load_weights
 from config.settings import settings
@@ -68,36 +70,44 @@ def dissent_check_node(state: dict):
     }
 
 def consensus_scoring_node(state: dict):
-    weights = load_weights()
-    signals = [s for s in state.get("model_signals", []) if not s.get("failed", False)]
+    # 1. Load weights
+    wm = WeightManager()
+    model_weights = wm.get_weights()
+    category_weights = wm.get_category_weights()
     
-    weighted_sum = 0.0
-    total_w = 0.0
-    
-    for s in signals:
-        w = weights.get(s["model_id"], 0.17)
-        d_val = 1 if s["direction"] == "BUY" else (-1 if s["direction"] == "SELL" else 0)
-        weighted_sum += w * s["confidence"] * d_val
-        total_w += w
-        
-    S = weighted_sum / total_w if total_w > 0 else 0.0
+    # 2. Extract signals and context
+    signals = state.get("model_signals", [])
+    ctx = state.get("stock_context", {})
     regime = state.get("market_regime", "SIDEWAYS")
     
-    thresholds = {
-        "BULL":     {"buy": 0.20, "sell": -0.45},
-        "SIDEWAYS": {"buy": 0.30, "sell": -0.30},
-        "BEAR":     {"buy": 0.45, "sell": -0.20},
-    }
-    t = thresholds.get(regime, thresholds["SIDEWAYS"])
+    # 3. Compute category scores
+    # Sentiment score from LLM model consensus
+    sentiment_score = compute_consensus_score(signals, model_weights)
     
-    if S > t["buy"]:   
-        direction = "BUY"
-    elif S < t["sell"]: 
-        direction = "SELL"
-    else:               
-        direction = "HOLD"
-        
-    return {"consensus_score": round(S, 6), "final_direction": direction}
+    # Technical score from raw indicators
+    tech_indicators = ctx.get("technicals", {})
+    tech_score = compute_technical_score(tech_indicators)
+    
+    # Fundamental score from fundamental data
+    fund_data = ctx.get("fundamentals", {})
+    fund_score = compute_fundamental_score(fund_data)
+    
+    # 4. Compute Total MMCI Score (Weighted aggregation)
+    total_score = compute_total_mmci_score(
+        tech_score, 
+        fund_score, 
+        sentiment_score, 
+        category_weights
+    )
+    
+    # 5. Determine direction based on regime thresholds
+    direction = determine_direction(total_score, regime)
+    
+    return {
+        "consensus_score": total_score,
+        "sentiment_score": sentiment_score, 
+        "final_direction": direction
+    }
 
 def position_sizing_node(state: dict):
     S = state["consensus_score"]
