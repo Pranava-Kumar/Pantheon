@@ -3,15 +3,15 @@
 ## Phase 1: Smarter Symbol Validation and Auto-Detection
 
 ### 1.1: UpstoxClient Refactor
-- [ ] Task: Update `UpstoxClient` with symbol validation and global fallback
-    - [ ] Write unit tests for `validate_symbol` and `_yfinance_fallback` with NSE and US tickers
-    - [ ] Implement `validate_symbol` method in `UpstoxClient`
-    - [ ] Update `_yfinance_fallback` to attempt raw symbol retrieval if `.NS` suffix fails
+- [x] Task: Update `UpstoxClient` with symbol validation and global fallback
+    - [x] Write unit tests for `validate_symbol` and `_yfinance_fallback` with NSE and US tickers
+    - [x] Implement `validate_symbol` method in `UpstoxClient`
+    - [x] Update `_yfinance_fallback` to attempt raw symbol retrieval if `.NS` suffix fails
 
 ### 1.2: Runner Enhancement
-- [ ] Task: Enhance `run_analysis.py` with early validation
-    - [ ] Implement early symbol check before building context
-    - [ ] Add graceful skip logic with clear ANSI-colored error messages for invalid symbols
+- [x] Task: Enhance `run_analysis.py` with early validation [aabc49f]
+    - [x] Implement early symbol check before building context [aabc49f]
+    - [x] Add graceful skip logic with clear ANSI-colored error messages for invalid symbols [aabc49f]
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Smarter Symbol Validation and Auto-Detection' (Protocol in workflow.md)
 
