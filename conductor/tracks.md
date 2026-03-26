@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Pipeline Reliability and Global Symbol Support**
+- [x] **Track: Pipeline Reliability and Global Symbol Support**
   *Link: [./tracks/pipeline_robustness_20260326/](./tracks/pipeline_robustness_20260326/)*
