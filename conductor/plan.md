@@ -6,10 +6,11 @@
     - [x] Create `pantheon/auth/jwt_handler.py` with encoding/decoding logic.
     - [x] Create FastAPI dependency (`Depends`) to secure endpoints.
 
-- [ ] Task: Configure CORS and API Rate Limiting
-    - [ ] Write tests for rate limiting logic.
-    - [ ] Update `pantheon/api/main.py` to restrict `allow_origins`.
-    - [ ] Implement a basic sliding window or token bucket rate limiter in memory (to be replaced by Redis later).
+- [x] Task: Configure CORS and API Rate Limiting 097f592
+    - [x] Write tests for rate limiting logic.
+    - [x] Update `pantheon/api/main.py` to restrict `allow_origins`.
+    - [x] Implement a basic sliding window or token bucket rate limiter in memory (to be replaced by Redis later).
+
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md)
 
 ## Phase 2: Redis Caching Layer
