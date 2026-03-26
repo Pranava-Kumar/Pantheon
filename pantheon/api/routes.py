@@ -11,10 +11,10 @@ from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, s
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select, func, col
 
-from db.session import get_db, init_db
-from db.models import SignalRecord, PaperTrade, User
+from pantheon.db.session import get_db, init_db
+from pantheon.db.models import SignalRecord, PaperTrade, User
 from pantheon.config import load_watchlist
-from api.schemas import (
+from pantheon.api.schemas import (
     SignalResponse, TradeResponse, HealthResponse,
     GateResponse, WatchlistItem, AnalysisTriggerResponse,
     Token, UserResponse
@@ -22,8 +22,13 @@ from api.schemas import (
 from pantheon.auth.jwt_handler import create_access_token
 from pantheon.auth.utils import verify_password
 from pantheon.auth.dependencies import get_current_active_user
+from pantheon.api.rate_limiter import RateLimiter
 
-router = APIRouter(prefix="/api/v1", tags=["Pantheon API"])
+router = APIRouter(
+    prefix="/api/v1", 
+    tags=["Pantheon API"],
+    dependencies=[Depends(RateLimiter(requests_limit=60, window_seconds=60))]
+)
 
 
 # ──────────────────────────────────────────────

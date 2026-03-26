@@ -4,8 +4,8 @@ PostgreSQL via Neon — no SQLite flags needed.
 """
 
 from sqlmodel import create_engine, Session, SQLModel
-from db.models import SignalRecord, PaperTrade, TokenRecord, ModelWeight
-from config.settings import settings
+from pantheon.db.models import SignalRecord, PaperTrade, TokenRecord, ModelWeight, User
+from pantheon.config.settings import settings
 
 engine = create_engine(settings.DATABASE_URL)
 

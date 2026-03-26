@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from pantheon.config.settings import settings
 from db.session import init_db
 from api.routes import router
 
@@ -25,14 +26,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Allow all origins for development; lock down in production
+# Restrict CORS origins based on settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 app.include_router(router)
 
