@@ -1,0 +1,39 @@
+# Implementation Plan: Pipeline Reliability and Global Symbol Support
+
+## Phase 1: Smarter Symbol Validation and Auto-Detection
+
+### 1.1: UpstoxClient Refactor
+- [ ] Task: Update `UpstoxClient` with symbol validation and global fallback
+    - [ ] Write unit tests for `validate_symbol` and `_yfinance_fallback` with NSE and US tickers
+    - [ ] Implement `validate_symbol` method in `UpstoxClient`
+    - [ ] Update `_yfinance_fallback` to attempt raw symbol retrieval if `.NS` suffix fails
+
+### 1.2: Runner Enhancement
+- [ ] Task: Enhance `run_analysis.py` with early validation
+    - [ ] Implement early symbol check before building context
+    - [ ] Add graceful skip logic with clear ANSI-colored error messages for invalid symbols
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Smarter Symbol Validation and Auto-Detection' (Protocol in workflow.md)
+
+## Phase 2: Cascading Groq Extractors and Better Logging
+
+### 2.1: Base Extractor Evolution
+- [ ] Task: Update `BaseExtractor` or create `CascadingExtractor`
+    - [ ] Write unit tests for internal fallback chains and retry logic
+    - [ ] Implement robust cascading fallback logic (similar to GeminiPro) in a reusable way
+
+### 2.2: Groq Refactor
+- [ ] Task: Refactor Groq Extractors to use cascading fallbacks
+    - [ ] Update `GroqLlamaExtractor`, `GroqQwenExtractor`, and `GroqGPTExtractor` with tiered model lists
+    - [ ] Ensure all fallback attempts and node starts are logged at the appropriate verbosity level
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Cascading Groq Extractors and Better Logging' (Protocol in workflow.md)
+
+## Phase 3: Integration and Robustness Testing
+
+### 3.1: End-to-End Pipeline Validation
+- [ ] Task: Verify full pipeline with global symbols and model failures
+    - [ ] Write integration tests simulating 429 errors and invalid symbols
+    - [ ] Ensure the final CLI output reflects the "Verbose Retries" and "Auto-Detect" requirements
+
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Integration and Robustness Testing' (Protocol in workflow.md)
