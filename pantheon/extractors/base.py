@@ -58,22 +58,57 @@ class BaseExtractor(ABC):
         return self._failed("max retries exceeded", start_time)
 
     def _parse(self, raw: str) -> ModelSignal:
-        # Strip markdown fences
-        text = raw.strip()
-        if text.startswith("```"):
-            try:
-                text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-            except IndexError:
-                pass
-        
-        # Extract first JSON object found (handles preamble text)
         import re
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if not match:
-            raise ValueError(f"No JSON object found in response: {text[:200]}")
-        text = match.group(0)
+        import json
         
-        data = json.loads(text)
+        # 1. Clean input: strip thinking tags and markdown fences
+        text = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0].strip()
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0].strip()
+
+        # 2. Heuristic: Look for JSON blocks { ... }
+        # Try to find all potential JSON objects
+        data = None
+        potential_blocks = []
+        
+        # Simple scan for balanced braces to find candidates
+        # This is more robust than regex for nested objects
+        stack = 0
+        start_idx = -1
+        for i, char in enumerate(text):
+            if char == '{':
+                if stack == 0: start_idx = i
+                stack += 1
+            elif char == '}':
+                stack -= 1
+                if stack == 0 and start_idx != -1:
+                    potential_blocks.append(text[start_idx:i+1])
+        
+        # 3. Validation: find the one that parses and has our fields
+        # Check in reverse (latest is usually the final answer)
+        for block in reversed(potential_blocks):
+            try:
+                candidate = json.loads(block)
+                if isinstance(candidate, dict) and "direction" in candidate:
+                    data = candidate
+                    break
+            except json.JSONDecodeError:
+                continue
+        
+        # Fallback to regex if balance-scan found nothing
+        if not data:
+            match = re.search(r'\{.*\}', text, re.DOTALL)
+            if match:
+                try:
+                    data = json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    pass
+
+        if not data:
+            raise ValueError(f"No valid JSON signal found in response: {text[:200]}")
+        
         data["model_id"] = self.model_id
         # Normalize direction
         direction = str(data.get("direction", "HOLD")).upper()
@@ -143,6 +178,14 @@ class CascadingExtractor(BaseExtractor):
                 raise ValueError(f"{model_name} returned empty response")
             except Exception as e:
                 last_error = e
+                err_msg = str(e)
+                
+                # If rate limited, wait a bit before trying the next fallback
+                if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                    wait_time = 2 * (self._failures[idx] + 1)
+                    logger.warning(f"[{self.model_id}] {model_name} rate limited. Waiting {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                
                 self._failures[idx] += 1
                 logger.warning(
                     f"[{self.model_id}] {model_name} failed ({self._failures[idx]}/{self._max_consecutive_failures}): {e!s:.120}"

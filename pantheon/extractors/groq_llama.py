@@ -3,9 +3,9 @@ from extractors.base import CascadingExtractor
 from config.settings import settings
 
 _FALLBACK_CHAIN = [
-    ("llama-3.3-70b-versatile", "groq"),
-    ("llama-3.1-70b-versatile", "groq"),
-    ("mixtral-8x7b-32768",       "groq"),
+    ("llama-3.3-70b-versatile",                "groq"),
+    ("meta-llama/llama-4-scout-17b-16e-instruct", "groq"),
+    ("llama-3.1-8b-instant",                   "groq"),
 ]
 
 class GroqLlamaExtractor(CascadingExtractor):
@@ -21,7 +21,7 @@ class GroqLlamaExtractor(CascadingExtractor):
                     base_url="https://api.groq.com/openai/v1",
                     api_key=settings.GROQ_API_KEY,
                     temperature=0.1,
-                    max_tokens=600
+                    max_tokens=2048
                 )
             ))
         self._failures = [0] * len(self._models)

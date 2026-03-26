@@ -3,8 +3,8 @@ from extractors.base import CascadingExtractor
 from config.settings import settings
 
 _FALLBACK_CHAIN = [
-    ("qwen-2.5-32b",      "groq"),
-    ("mixtral-8x7b-32768", "groq"),
+    ("qwen/qwen3-32b",          "groq"),
+    ("llama-3.3-70b-versatile", "groq"),
 ]
 
 class GroqQwenExtractor(CascadingExtractor):
@@ -20,7 +20,7 @@ class GroqQwenExtractor(CascadingExtractor):
                     base_url="https://api.groq.com/openai/v1",
                     api_key=settings.GROQ_API_KEY,
                     temperature=0.1,
-                    max_tokens=600
+                    max_tokens=2048
                 )
             ))
         self._failures = [0] * len(self._models)

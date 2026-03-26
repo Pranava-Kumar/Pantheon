@@ -144,21 +144,27 @@ class UpstoxClient:
         if symbol in self._instrument_map:
             return True
             
-        # Fallback to yfinance validation
-        for s in [f"{symbol}.NS", symbol]:
+        # Fallback to yfinance validation with noise suppression
+        import os
+        import contextlib
+        import sys
+        
+        # Try raw symbol (Global) then symbol.NS (NSE unmapped)
+        for s in [symbol, f"{symbol}.NS"]:
             try:
-                ticker = yf.Ticker(s)
-                df = ticker.history(period="1d")
-                if not df.empty:
-                    return True
+                with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                    ticker = yf.Ticker(s)
+                    df = ticker.history(period="1d")
+                    if not df.empty:
+                        return True
             except Exception:
                 continue
         return False
 
     def _yfinance_current_fallback(self, nse_symbol: str) -> float:
         try:
-            # Try cascading: symbol.NS then symbol
-            for s in [f"{nse_symbol}.NS", nse_symbol]:
+            # Try cascading: symbol then symbol.NS
+            for s in [nse_symbol, f"{nse_symbol}.NS"]:
                 try:
                     ticker = yf.Ticker(s)
                     price = float(ticker.fast_info.last_price)
@@ -173,8 +179,8 @@ class UpstoxClient:
     def _yfinance_fallback(self, nse_symbol: str, days: int) -> pd.DataFrame:
         try:
             df = pd.DataFrame()
-            # Try cascading: symbol.NS then symbol
-            for s in [f"{nse_symbol}.NS", nse_symbol]:
+            # Try cascading: symbol then symbol.NS
+            for s in [nse_symbol, f"{nse_symbol}.NS"]:
                 try:
                     ticker = yf.Ticker(s)
                     # Multiply by 1.5 to convert trading days to calendar days

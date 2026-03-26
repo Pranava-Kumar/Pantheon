@@ -2,7 +2,12 @@ import argparse
 import asyncio
 import sys
 import uuid
+import os
 from pathlib import Path
+
+# Disable LangSmith early to avoid noisy auth errors
+os.environ["LANGSMITH_TRACING"] = "false"
+
 from loguru import logger
 
 # Add project root to sys.path so we can run from anywhere
@@ -135,6 +140,11 @@ if __name__ == "__main__":
     logger.disable("urllib3")
     logger.remove()
     logger.add(sys.stderr, level="WARNING")
+    
+    # Disable LangSmith if key is missing to avoid noisy auth errors
+    import os
+    if not settings.LANGSMITH_API_KEY:
+        os.environ["LANGSMITH_TRACING"] = "false"
     
     try:
         asyncio.run(main(args.symbols))

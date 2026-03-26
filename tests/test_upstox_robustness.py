@@ -38,21 +38,21 @@ def test_validate_symbol_invalid(mock_yf, mock_upstox):
 
 @patch("pantheon.data.upstox_client.yf.Ticker")
 def test_yfinance_fallback_cascading(mock_yf, mock_upstox):
-    # Should try symbol.NS then symbol
-    mock_ticker_ns = MagicMock()
-    mock_ticker_ns.history.return_value = pd.DataFrame() # Fails for .NS
-    
+    # Should try symbol first, then symbol.NS
     mock_ticker_raw = MagicMock()
-    mock_ticker_raw.history.return_value = pd.DataFrame({"close": [150], "open": [100], "high": [160], "low": [90], "volume": [1000]})
-    mock_ticker_raw.reset_index.return_value = pd.DataFrame({"Date": ["2026-03-26"], "Close": [150], "Open": [100], "High": [160], "Low": [90], "Volume": [1000]})
+    mock_ticker_raw.history.return_value = pd.DataFrame() # Fails for raw
+    
+    mock_ticker_ns = MagicMock()
+    mock_ticker_ns.history.return_value = pd.DataFrame({"close": [150], "open": [100], "high": [160], "low": [90], "volume": [1000]})
+    mock_ticker_ns.reset_index.return_value = pd.DataFrame({"Date": ["2026-03-26"], "Close": [150], "Open": [100], "High": [160], "Low": [90], "Volume": [1000]})
 
     def side_effect(ticker_name):
-        if ticker_name == "AAPL.NS":
-            return mock_ticker_ns
-        return mock_ticker_raw
+        if ticker_name == "RELIANCE":
+            return mock_ticker_raw
+        return mock_ticker_ns
 
     mock_yf.side_effect = side_effect
     
-    df = mock_upstox._yfinance_fallback("AAPL", days=1)
+    df = mock_upstox._yfinance_fallback("RELIANCE", days=1)
     assert not df.empty
     assert mock_yf.call_count >= 2
