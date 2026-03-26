@@ -1,6 +1,6 @@
 # Implementation Plan: Pipeline Reliability and Global Symbol Support
 
-## Phase 1: Smarter Symbol Validation and Auto-Detection
+## Phase 1: Smarter Symbol Validation and Auto-Detection [checkpoint: ad5f196]
 
 ### 1.1: UpstoxClient Refactor
 - [x] Task: Update `UpstoxClient` with symbol validation and global fallback
@@ -13,7 +13,7 @@
     - [x] Implement early symbol check before building context [aabc49f]
     - [x] Add graceful skip logic with clear ANSI-colored error messages for invalid symbols [aabc49f]
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Smarter Symbol Validation and Auto-Detection' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Smarter Symbol Validation and Auto-Detection' (Protocol in workflow.md) [ad5f196]
 
 ## Phase 2: Cascading Groq Extractors and Better Logging
 
