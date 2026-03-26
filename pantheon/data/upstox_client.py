@@ -137,24 +137,53 @@ class UpstoxClient:
             self.logger.error(f"Upstox LTP failed for {nse_symbol} ({instrument_key}): {str(e)}. Falling back to yfinance.")
             return self._yfinance_current_fallback(nse_symbol)
             
+    def validate_symbol(self, symbol: str) -> bool:
+        """
+        Validates if a symbol exists either in Upstox (NSE) or via yfinance (Global).
+        """
+        if symbol in self._instrument_map:
+            return True
+            
+        # Fallback to yfinance validation
+        for s in [f"{symbol}.NS", symbol]:
+            try:
+                ticker = yf.Ticker(s)
+                df = ticker.history(period="1d")
+                if not df.empty:
+                    return True
+            except Exception:
+                continue
+        return False
+
     def _yfinance_current_fallback(self, nse_symbol: str) -> float:
         try:
-            ticker_sym = nse_symbol if nse_symbol.startswith("^") else (nse_symbol if nse_symbol.endswith(".NS") else f"{nse_symbol}.NS")
-            ticker = yf.Ticker(ticker_sym)
-            return float(ticker.fast_info.last_price)
+            # Try cascading: symbol.NS then symbol
+            for s in [f"{nse_symbol}.NS", nse_symbol]:
+                try:
+                    ticker = yf.Ticker(s)
+                    price = float(ticker.fast_info.last_price)
+                    if price > 0: return price
+                except Exception:
+                    continue
+            return 0.0
         except Exception as e2:
             self.logger.error(f"yfinance fallback failed for {nse_symbol}: {str(e2)}")
             return 0.0
 
     def _yfinance_fallback(self, nse_symbol: str, days: int) -> pd.DataFrame:
         try:
-            ticker_sym = nse_symbol if nse_symbol.startswith("^") else (nse_symbol if nse_symbol.endswith(".NS") else f"{nse_symbol}.NS")
-            ticker = yf.Ticker(ticker_sym)
-            
-            # Multiply by 1.5 to convert trading days to calendar days
-            # Add 60 buffer for holidays. Minimum 400 to guarantee EMA200.
-            calendar_days = max(int(days * 1.5) + 60, 400)
-            df = ticker.history(period=f"{calendar_days}d", interval="1d")
+            df = pd.DataFrame()
+            # Try cascading: symbol.NS then symbol
+            for s in [f"{nse_symbol}.NS", nse_symbol]:
+                try:
+                    ticker = yf.Ticker(s)
+                    # Multiply by 1.5 to convert trading days to calendar days
+                    # Add 60 buffer for holidays. Minimum 400 to guarantee EMA200.
+                    calendar_days = max(int(days * 1.5) + 60, 400)
+                    df = ticker.history(period=f"{calendar_days}d", interval="1d")
+                    if not df.empty: break
+                except Exception:
+                    continue
             
             if df.empty:
                 return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])

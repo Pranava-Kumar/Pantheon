@@ -67,6 +67,11 @@ async def main(symbols: list[str] | None):
     for idx, symbol in enumerate(symbols):
         symbol = symbol.upper()
         
+        # Early Validation
+        if not upstox.validate_symbol(symbol):
+            print(f"[{RED}{BOLD}ERROR{RESET}] {symbol:10} Symbol not found in NSE or Global markets. Skipping...")
+            continue
+            
         # Build the context
         ctx = await builder.build(symbol, symbol, "Unknown", regime)
         
