@@ -58,9 +58,6 @@ class BaseExtractor(ABC):
         return self._failed("max retries exceeded", start_time)
 
     def _parse(self, raw: str) -> ModelSignal:
-        import re
-        import json
-        
         # 1. Clean input: strip thinking tags and markdown fences
         text = re.sub(r'<think>.*?</think>', '', raw, flags=re.DOTALL).strip()
         if "```json" in text:
@@ -156,6 +153,10 @@ class CascadingExtractor(BaseExtractor):
     async def _call_model(self, prompt: str) -> str:
         last_error = None
         
+        # Ensure failures list is synchronized with models
+        while len(self._failures) < len(self._models):
+            self._failures.append(0)
+            
         for idx in range(self._preferred_idx, len(self._models)):
             # If a model has failed too many consecutive times, permanently skip it 
             # (unless it's the absolute last resort fallback)
@@ -206,4 +207,6 @@ class CascadingExtractor(BaseExtractor):
 
         raise RuntimeError(
             f"All {len(self._models)} fallback models exhausted. Last error: {last_error}"
+        )
+back models exhausted. Last error: {last_error}"
         )

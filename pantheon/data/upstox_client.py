@@ -143,13 +143,10 @@ class UpstoxClient:
         """
         if symbol in self._instrument_map:
             return True
-            
+
         # Fallback to yfinance validation with noise suppression
-        import os
-        import contextlib
-        import sys
-        
         # Try raw symbol (Global) then symbol.NS (NSE unmapped)
+
         for s in [symbol, f"{symbol}.NS"]:
             try:
                 with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
@@ -224,5 +221,8 @@ class UpstoxClient:
             return self._instrument_map[nse_symbol]
             
         # Return a silent flag enforcing direct yfinance override 
+        # to block API traces and noisy ERROR logging dumps
+        return f"YFINANCE_ONLY|{nse_symbol}"
+inance override 
         # to block API traces and noisy ERROR logging dumps
         return f"YFINANCE_ONLY|{nse_symbol}"
