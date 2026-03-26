@@ -15,7 +15,7 @@ def compute_dissent_score(signals: list[dict]) -> float:
     signed = [s["confidence"] * (1 if s["direction"]=="BUY" else -1 if s["direction"]=="SELL" else 0) for s in active]
     return statistics.variance(signed)
 
-from .weights import INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+from pantheon.mmci.weights import INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
 
 def compute_technical_score(indicators: dict) -> float:
     """

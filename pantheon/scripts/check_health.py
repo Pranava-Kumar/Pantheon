@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import text
-from config.settings import settings
+from pantheon.config.settings import settings
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
 
     # CHECK 1 — Database
     try:
-        from db.session import SessionLocal, init_db
+        from pantheon.db.session import SessionLocal, init_db
         init_db()
         db = SessionLocal()
         db.execute(text("SELECT 1"))
@@ -58,7 +58,7 @@ def main():
 
     # CHECK 4 — NSE API
     try:
-        from data.nse_client import NSEClient
+        from pantheon.data.nse_client import NSEClient
         nse = NSEClient()
         status = nse.get_market_status()
         print(f"[OK] NSE API — market is {status}")
@@ -68,7 +68,7 @@ def main():
 
     # CHECK 5 — Screener.in
     try:
-        from data.screener_client import ScreenerClient
+        from pantheon.data.screener_client import ScreenerClient
         client = ScreenerClient(settings.SCREENER_EMAIL, settings.SCREENER_PASSWORD)
         if getattr(client, "_logged_in", False):
             print("[OK] Screener.in — logged in")

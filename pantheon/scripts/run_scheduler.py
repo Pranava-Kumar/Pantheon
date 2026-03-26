@@ -8,9 +8,9 @@ import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
 
-from jobs.daily_analysis import run_daily_analysis
-from jobs.weight_updater import run_weight_update
-from scripts.check_health import main as health_main
+from pantheon.jobs.daily_analysis import run_daily_analysis
+from pantheon.jobs.weight_updater import run_weight_update
+from pantheon.scripts.check_health import main as health_main
 
 async def scheduled_analysis():
     logger.info("Starting scheduled daily MMCI analysis...")

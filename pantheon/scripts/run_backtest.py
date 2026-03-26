@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 import yfinance as yf
 
-from data.indicators import compute_indicators
+from pantheon.data.indicators import compute_indicators
 
 def get_historical_prices(symbol: str, days: int) -> pd.DataFrame:
     ticker_sym = symbol if symbol.endswith(".NS") else f"{symbol}.NS"

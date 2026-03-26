@@ -10,9 +10,9 @@ import pandas as pd
 from datetime import datetime, date
 from sqlalchemy import func
 
-from db.session import SessionLocal, init_db
-from db.models import SignalRecord, PaperTrade
-from data.weights_store import load_weights
+from pantheon.db.session import SessionLocal, init_db
+from pantheon.db.models import SignalRecord, PaperTrade
+from pantheon.data.weights_store import load_weights
 
 st.set_page_config(
     page_title="Project Pantheon",

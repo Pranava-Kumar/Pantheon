@@ -13,14 +13,14 @@ from loguru import logger
 # Add project root to sys.path so we can run from anywhere
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config.settings import settings
-from data.upstox_client import UpstoxClient
-from data.nse_client import NSEClient
-from data.screener_client import ScreenerClient
-from data.news_client import NewsClient
-from data.context_builder import ContextBuilder
-from agents.graph import build_graph
-from config import load_watchlist
+from pantheon.config.settings import settings
+from pantheon.data.upstox_client import UpstoxClient
+from pantheon.data.nse_client import NSEClient
+from pantheon.data.screener_client import ScreenerClient
+from pantheon.data.news_client import NewsClient
+from pantheon.data.context_builder import ContextBuilder
+from pantheon.agents.graph import build_graph
+from pantheon.config import load_watchlist
 
 # ANSI Escape Codes for formatting
 GREEN = '\033[92m'

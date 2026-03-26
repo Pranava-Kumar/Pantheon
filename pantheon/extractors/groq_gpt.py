@@ -1,6 +1,6 @@
 from langchain_openai import ChatOpenAI
-from extractors.base import CascadingExtractor
-from config.settings import settings
+from pantheon.extractors.base import CascadingExtractor
+from pantheon.config.settings import settings
 
 _FALLBACK_CHAIN = [
     ("openai/gpt-oss-120b",      "groq"),

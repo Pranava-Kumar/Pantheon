@@ -2,11 +2,11 @@ import asyncio
 from datetime import datetime
 from loguru import logger
 
-from data.upstox_client import UpstoxClient
-from data.nse_client import NSEClient
-from data.screener_client import ScreenerClient
-from data.news_client import NewsClient
-from data.indicators import compute_indicators
+from pantheon.data.upstox_client import UpstoxClient
+from pantheon.data.nse_client import NSEClient
+from pantheon.data.screener_client import ScreenerClient
+from pantheon.data.news_client import NewsClient
+from pantheon.data.indicators import compute_indicators
 
 class ContextBuilder:
     def __init__(self, upstox: UpstoxClient, nse: NSEClient, 

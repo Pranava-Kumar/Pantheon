@@ -153,7 +153,7 @@ def get_watchlist():
 # ──────────────────────────────────────────────
 @router.get("/gate", response_model=GateResponse)
 def get_exit_gate():
-    from jobs.paper_trading_tracker import check_exit_gate
+    from pantheon.jobs.paper_trading_tracker import check_exit_gate
     result = check_exit_gate()
     return GateResponse(**result)
 
@@ -162,7 +162,7 @@ def get_exit_gate():
 # TRIGGER (for cron-job.org or manual use)
 # ──────────────────────────────────────────────
 async def _run_analysis_background(symbols: list[str] | None):
-    from jobs.daily_analysis import run_daily_analysis
+    from pantheon.jobs.daily_analysis import run_daily_analysis
     await run_daily_analysis(symbols)
 
 

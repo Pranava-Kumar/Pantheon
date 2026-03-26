@@ -1,6 +1,6 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from extractors.base import CascadingExtractor
-from config.settings import settings
+from pantheon.extractors.base import CascadingExtractor
+from pantheon.config.settings import settings
 
 _FALLBACK_CHAIN = [
     ("gemini-3.0-flash-preview", "google"),

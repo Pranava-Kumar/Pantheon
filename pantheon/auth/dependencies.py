@@ -3,10 +3,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from sqlmodel import Session, select
-from db.session import get_db
-from db.models import User
+from pantheon.db.session import get_db
+from pantheon.db.models import User
 from pantheon.auth.jwt_handler import decode_access_token
-from api.schemas import TokenData
+from pantheon.api.schemas import TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/token")
 

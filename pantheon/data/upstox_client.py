@@ -1,3 +1,5 @@
+import os
+import contextlib
 import datetime
 import pandas as pd
 import yfinance as yf
@@ -221,8 +223,5 @@ class UpstoxClient:
             return self._instrument_map[nse_symbol]
             
         # Return a silent flag enforcing direct yfinance override 
-        # to block API traces and noisy ERROR logging dumps
-        return f"YFINANCE_ONLY|{nse_symbol}"
-inance override 
         # to block API traces and noisy ERROR logging dumps
         return f"YFINANCE_ONLY|{nse_symbol}"

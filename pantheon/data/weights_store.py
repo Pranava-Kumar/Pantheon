@@ -10,9 +10,9 @@ from datetime import datetime
 from loguru import logger
 from sqlmodel import select
 
-from db.session import SessionLocal, init_db
-from db.models import ModelWeight
-from mmci.weights import load_config_weights
+from pantheon.db.session import SessionLocal, init_db
+from pantheon.db.models import ModelWeight
+from pantheon.mmci.weights import load_config_weights
 
 def load_weights() -> dict:
     """Load current model weights from the database.

@@ -15,8 +15,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from pantheon.config.settings import settings
-from db.session import init_db
-from api.routes import router
+from pantheon.db.session import init_db
+from pantheon.api.routes import router
 
 app = FastAPI(
     title="Project Pantheon",

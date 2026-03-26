@@ -3,16 +3,16 @@ import uuid
 from datetime import datetime
 from loguru import logger
 
-from agents.graph import build_graph
-from data.upstox_client import UpstoxClient
-from data.nse_client import NSEClient
-from data.screener_client import ScreenerClient
-from data.news_client import NewsClient
-from data.context_builder import ContextBuilder
-from db.session import SessionLocal, init_db
-from db.models import SignalRecord, PaperTrade
-from config.settings import settings
-from config import load_watchlist
+from pantheon.agents.graph import build_graph
+from pantheon.data.upstox_client import UpstoxClient
+from pantheon.data.nse_client import NSEClient
+from pantheon.data.screener_client import ScreenerClient
+from pantheon.data.news_client import NewsClient
+from pantheon.data.context_builder import ContextBuilder
+from pantheon.db.session import SessionLocal, init_db
+from pantheon.db.models import SignalRecord, PaperTrade
+from pantheon.config.settings import settings
+from pantheon.config import load_watchlist
 import sentry_sdk
 
 sentry_sdk.init(

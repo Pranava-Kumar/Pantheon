@@ -1,6 +1,6 @@
 from langchain_openai import ChatOpenAI
-from extractors.base import CascadingExtractor
-from config.settings import settings
+from pantheon.extractors.base import CascadingExtractor
+from pantheon.config.settings import settings
 
 _FALLBACK_CHAIN = [
     ("llama-3.3-70b-versatile",                "groq"),

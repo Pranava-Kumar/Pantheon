@@ -13,8 +13,8 @@ Fallback order (user-specified):
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from extractors.base import CascadingExtractor
-from config.settings import settings
+from pantheon.extractors.base import CascadingExtractor
+from pantheon.config.settings import settings
 from loguru import logger
 
 

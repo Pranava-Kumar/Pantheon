@@ -1,6 +1,7 @@
 import json
 import asyncio
 import time
+import re
 from abc import ABC, abstractmethod
 from loguru import logger
 from pydantic import BaseModel
@@ -207,6 +208,4 @@ class CascadingExtractor(BaseExtractor):
 
         raise RuntimeError(
             f"All {len(self._models)} fallback models exhausted. Last error: {last_error}"
-        )
-back models exhausted. Last error: {last_error}"
         )
