@@ -181,17 +181,27 @@ def hold_output_node(state: dict):
 def route_after_dissent(state: dict):
     return "hold_output_node" if state.get("dissent_flag") else "consensus_scoring_node"
 
+def batch_separator_node(state: dict):
+    # Small sleep between model batches to mitigate shared rate limit pressure
+    time.sleep(1)
+    return {}
+
 def build_graph():
     builder = StateGraph(PantheonState)
     builder.add_node("prompt_builder_node", prompt_builder_node)
+    builder.add_node("batch_separator_node", batch_separator_node)
     
     extractors = get_all_extractors()
-    model_nodes = []
+    groq_nodes = []
+    gemini_nodes = []
     
     for extractor in extractors:
         node_func = make_model_node(extractor)
         builder.add_node(node_func.__name__, node_func)
-        model_nodes.append(node_func.__name__)
+        if "groq" in extractor.model_id:
+            groq_nodes.append(node_func.__name__)
+        else:
+            gemini_nodes.append(node_func.__name__)
         
     builder.add_node("dissent_check_node", dissent_check_node)
     builder.add_node("consensus_scoring_node", consensus_scoring_node)
@@ -199,10 +209,18 @@ def build_graph():
     builder.add_node("output_node", output_node)
     builder.add_node("hold_output_node", hold_output_node)
     
+    # Execution Flow:
+    # 1. Build Prompts
     builder.add_edge(START, "prompt_builder_node")
     
-    for name in model_nodes:
+    # 2. Run Groq Models first
+    for name in groq_nodes:
         builder.add_edge("prompt_builder_node", name)
+        builder.add_edge(name, "batch_separator_node")
+        
+    # 3. Run Gemini Models last
+    for name in gemini_nodes:
+        builder.add_edge("batch_separator_node", name)
         builder.add_edge(name, "dissent_check_node")
         
     builder.add_conditional_edges(

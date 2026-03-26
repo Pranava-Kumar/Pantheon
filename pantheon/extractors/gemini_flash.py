@@ -3,9 +3,9 @@ from extractors.base import CascadingExtractor
 from config.settings import settings
 
 _FALLBACK_CHAIN = [
-    ("gemini-3.0-flash",      "google"),
-    ("gemini-2.5-flash",      "google"),
-    ("gemini-1.5-flash",      "google"),
+    ("gemini-3.0-flash-preview", "google"),
+    ("gemini-2.5-flash",         "google"),
+    ("gemini-2.0-flash",         "google"),
 ]
 
 class GeminiFlashExtractor(CascadingExtractor):

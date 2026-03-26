@@ -20,12 +20,12 @@ from loguru import logger
 
 # Ordered fallback chain — each entry: (model_name, provider)
 _FALLBACK_CHAIN = [
-    ("gemini-3.1-pro",           "google"),
-    ("gemini-3.0-flash",         "google"),
+    ("gemini-3.1-pro-preview",   "google"),
+    ("gemini-3-pro-preview",     "google"),
+    ("gemini-3-flash-preview",   "google"),
     ("gemini-2.5-pro",           "google"),
     ("gemini-2.5-flash",         "google"),
-    ("gemini-1.5-pro",           "google"),
-    ("gemini-1.5-flash",         "google"),
+    ("gemini-2.0-flash",         "google"),
     ("openrouter/auto",          "openrouter"),
 ]
 

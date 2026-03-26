@@ -171,10 +171,23 @@ class CascadingExtractor(BaseExtractor):
                 # Verbose requirement: Log attempt
                 logger.info(f"[{self.model_id}] Attempting extraction with {model_name}...")
                 response = await llm.ainvoke(prompt)
+                
+                content = ""
                 if response and response.content:
+                    if isinstance(response.content, str):
+                        content = response.content
+                    elif isinstance(response.content, list):
+                        # Handle multimodal or tool call list response
+                        for item in response.content:
+                            if isinstance(item, dict) and "text" in item:
+                                content += item["text"]
+                            elif isinstance(item, str):
+                                content += item
+                    
+                if content:
                     logger.debug(f"[{self.model_id}] Success with {model_name}")
                     self._failures[idx] = 0 
-                    return response.content
+                    return content
                 raise ValueError(f"{model_name} returned empty response")
             except Exception as e:
                 last_error = e

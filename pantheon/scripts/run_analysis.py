@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # Mute loud 3rd-party loggers if desired
     logger.disable("urllib3")
     logger.remove()
-    logger.add(sys.stderr, level="WARNING")
+    logger.add(sys.stderr, level="INFO")
     
     # Disable LangSmith if key is missing to avoid noisy auth errors
     import os
