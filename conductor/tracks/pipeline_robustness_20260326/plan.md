@@ -18,14 +18,14 @@
 ## Phase 2: Cascading Groq Extractors and Better Logging
 
 ### 2.1: Base Extractor Evolution
-- [ ] Task: Update `BaseExtractor` or create `CascadingExtractor`
-    - [ ] Write unit tests for internal fallback chains and retry logic
-    - [ ] Implement robust cascading fallback logic (similar to GeminiPro) in a reusable way
+- [x] Task: Update `BaseExtractor` or create `CascadingExtractor` [707a7b4]
+    - [x] Write unit tests for internal fallback chains and retry logic [707a7b4]
+    - [x] Implement robust cascading fallback logic (similar to GeminiPro) in a reusable way [707a7b4]
 
 ### 2.2: Groq Refactor
-- [ ] Task: Refactor Groq Extractors to use cascading fallbacks
-    - [ ] Update `GroqLlamaExtractor`, `GroqQwenExtractor`, and `GroqGPTExtractor` with tiered model lists
-    - [ ] Ensure all fallback attempts and node starts are logged at the appropriate verbosity level
+- [x] Task: Refactor Groq Extractors to use cascading fallbacks [707a7b4]
+    - [x] Update `GroqLlamaExtractor`, `GroqQwenExtractor`, and `GroqGPTExtractor` with tiered model lists [707a7b4]
+    - [x] Ensure all fallback attempts and node starts are logged at the appropriate verbosity level [707a7b4]
 
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Cascading Groq Extractors and Better Logging' (Protocol in workflow.md)
 
