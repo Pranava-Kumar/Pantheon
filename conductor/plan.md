@@ -1,6 +1,6 @@
 # Implementation Plan: Production Grade Enhancements & Hardening
 
-## Phase 1: Security & Authentication Hardening
+## Phase 1: Security & Authentication Hardening [checkpoint: bb2e69f]
 - [x] Task: Implement JWT Authentication Middleware c279821
     - [x] Write unit tests for JWT token generation and validation.
     - [x] Create `pantheon/auth/jwt_handler.py` with encoding/decoding logic.
@@ -11,7 +11,7 @@
     - [x] Update `pantheon/api/main.py` to restrict `allow_origins`.
     - [x] Implement a basic sliding window or token bucket rate limiter in memory (to be replaced by Redis later).
 
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md) bb2e69f
 
 ## Phase 2: Redis Caching Layer
 - [ ] Task: Integrate Redis Connection Manager
