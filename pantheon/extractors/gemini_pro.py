@@ -13,7 +13,7 @@ Fallback order (user-specified):
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from extractors.base import BaseExtractor
+from extractors.base import CascadingExtractor
 from config.settings import settings
 from loguru import logger
 
@@ -30,11 +30,11 @@ _FALLBACK_CHAIN = [
 ]
 
 
-class GeminiProExtractor(BaseExtractor):
+class GeminiProExtractor(CascadingExtractor):
     model_id = "gemini_pro"
 
     def __init__(self):
-        self._models = []
+        super().__init__()
         for model_name, provider in _FALLBACK_CHAIN:
             if provider == "google":
                 self._models.append((
@@ -58,40 +58,4 @@ class GeminiProExtractor(BaseExtractor):
                         max_tokens=1024,
                     ),
                 ))
-        self._preferred_idx = 0
         self._failures = [0] * len(self._models)
-        self._max_consecutive_failures = 2
-
-    async def _call_model(self, prompt: str) -> str:
-        last_error = None
-        
-        for idx in range(self._preferred_idx, len(self._models)):
-            # If a model has failed too many consecutive times, permanently skip it 
-            # (unless it's the absolute last resort fallback)
-            if self._failures[idx] >= self._max_consecutive_failures and idx != len(self._models) - 1:
-                if self._preferred_idx == idx:
-                    logger.info(f"[{self.model_id}] Automatically rerouting permanently past {self._models[idx][0]}")
-                    self._preferred_idx += 1
-                continue
-
-            model_name, llm = self._models[idx]
-            
-            try:
-                response = await llm.ainvoke(prompt)
-                if response and response.content:
-                    logger.debug(f"[{self.model_id}] Success with {model_name}")
-                    self._failures[idx] = 0 # reset on success
-                    return response.content
-                raise ValueError(f"{model_name} returned empty response")
-            except Exception as e:
-                last_error = e
-                self._failures[idx] += 1
-                logger.warning(
-                    f"[{self.model_id}] {model_name} failed ({self._failures[idx]}/{self._max_consecutive_failures}): {e!s:.120}, "
-                    f"trying next fallback..."
-                )
-
-        raise RuntimeError(
-            f"All {len(self._models)} fallback models exhausted. "
-            f"Last error: {last_error}"
-        )

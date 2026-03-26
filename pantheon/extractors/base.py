@@ -107,3 +107,47 @@ class BaseExtractor(ABC):
             failure_reason=reason[:200],
             latency_ms=int((time.monotonic() - start_time) * 1000)
         )
+
+class CascadingExtractor(BaseExtractor):
+    """
+    An extractor that supports an internal chain of fallback models.
+    """
+    def __init__(self):
+        self._models = [] # List of (model_name, llm_instance)
+        self._preferred_idx = 0
+        self._failures = []
+        self._max_consecutive_failures = 2
+
+    async def _call_model(self, prompt: str) -> str:
+        last_error = None
+        
+        for idx in range(self._preferred_idx, len(self._models)):
+            # If a model has failed too many consecutive times, permanently skip it 
+            # (unless it's the absolute last resort fallback)
+            if self._failures[idx] >= self._max_consecutive_failures and idx != len(self._models) - 1:
+                if self._preferred_idx == idx:
+                    logger.info(f"[{self.model_id}] Automatically rerouting permanently past {self._models[idx][0]}")
+                    self._preferred_idx += 1
+                continue
+
+            model_name, llm = self._models[idx]
+            
+            try:
+                # Verbose requirement: Log attempt
+                logger.info(f"[{self.model_id}] Attempting extraction with {model_name}...")
+                response = await llm.ainvoke(prompt)
+                if response and response.content:
+                    logger.debug(f"[{self.model_id}] Success with {model_name}")
+                    self._failures[idx] = 0 
+                    return response.content
+                raise ValueError(f"{model_name} returned empty response")
+            except Exception as e:
+                last_error = e
+                self._failures[idx] += 1
+                logger.warning(
+                    f"[{self.model_id}] {model_name} failed ({self._failures[idx]}/{self._max_consecutive_failures}): {e!s:.120}"
+                )
+
+        raise RuntimeError(
+            f"All {len(self._models)} fallback models exhausted. Last error: {last_error}"
+        )

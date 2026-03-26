@@ -1,20 +1,26 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from extractors.base import BaseExtractor
+from extractors.base import CascadingExtractor
 from config.settings import settings
 
-class GeminiFlashExtractor(BaseExtractor):
+_FALLBACK_CHAIN = [
+    ("gemini-2.5-flash", "google"),
+    ("gemini-2.0-flash", "google"),
+]
+
+class GeminiFlashExtractor(CascadingExtractor):
     model_id = "gemini_flash"
 
     def __init__(self):
-        self._model = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=settings.GOOGLE_API_KEY,
-            thinking_budget=0,
-            temperature=0.1,
-            max_output_tokens=1024,
-            max_retries=1
-        )
-
-    async def _call_model(self, prompt: str) -> str:
-        response = await self._model.ainvoke(prompt)
-        return response.content
+        super().__init__()
+        for model_name, provider in _FALLBACK_CHAIN:
+            self._models.append((
+                model_name,
+                ChatGoogleGenerativeAI(
+                    model=model_name,
+                    google_api_key=settings.GOOGLE_API_KEY,
+                    temperature=0.1,
+                    max_output_tokens=1024,
+                    max_retries=1
+                )
+            ))
+        self._failures = [0] * len(self._models)
