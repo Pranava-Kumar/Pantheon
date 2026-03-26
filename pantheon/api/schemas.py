@@ -71,3 +71,23 @@ class AnalysisTriggerResponse(BaseModel):
     status: str
     message: str
     symbols: list[str]
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    username: str
+    email: str
+    is_active: bool
+    is_superuser: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+

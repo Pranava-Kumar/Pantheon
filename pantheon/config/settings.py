@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     NEWS_RETENTION_HOURS: int = 72
     NODE_CACHE_TTL_HOURS: int = 4
 
+    # Security & Authentication
+    JWT_SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7" # openssl rand -hex 32
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     # Schedule (IST hours)
     ANALYSIS_HOUR_IST: int = 17
     ANALYSIS_MINUTE_IST: int = 0

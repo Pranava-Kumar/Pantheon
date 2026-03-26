@@ -73,3 +73,16 @@ class ModelWeight(SQLModel, table=True):
     model_id: str = Field(primary_key=True)   # e.g. "gemini_pro", "groq_qwen"
     weight: float = Field(default=0.20)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class User(SQLModel, table=True):
+    __tablename__ = "users"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(unique=True, index=True)
+    email: str = Field(unique=True, index=True)
+    hashed_password: str
+    is_active: bool = Field(default=True)
+    is_superuser: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+

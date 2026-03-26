@@ -22,8 +22,13 @@
 - PyYAML: Configuration management for model and category weights.
 
 
+## Security & Authentication
+- **PyJWT:** Standard JSON Web Token implementation for secure API authentication.
+- **Passlib (with bcrypt):** Secure password hashing and verification logic.
+
 ## Infrastructure & Operations
 - **Uvicorn:** ASGI server for high-performance FastAPI deployment.
+
 - **APScheduler:** Automated scheduling for daily analysis, weights updates, and tracking jobs.
 - **Loguru & Sentry:** Comprehensive logging and real-time error tracking.
 - **Tenacity:** Robust retry logic for handling external API and network instabilities.

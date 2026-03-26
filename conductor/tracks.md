@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Production Grade Enhancements & Hardening: Security, Async Queues, Caching, Observability, and Containerization.**
+- [~] **Track: Production Grade Enhancements & Hardening: Security, Async Queues, Caching, Observability, and Containerization.**
 *Link: [./tracks/production_hardening_20260327/](./tracks/production_hardening_20260327/)*

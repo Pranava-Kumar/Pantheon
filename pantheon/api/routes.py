@@ -5,18 +5,51 @@ All endpoints are read-only except /trigger which kicks off analysis.
 
 import asyncio
 from datetime import datetime, date
-from fastapi import APIRouter, Depends, Query, BackgroundTasks
+from typing import Annotated
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
+
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select, func, col
 
 from db.session import get_db, init_db
-from db.models import SignalRecord, PaperTrade
-from config import load_watchlist
+from db.models import SignalRecord, PaperTrade, User
+from pantheon.config import load_watchlist
 from api.schemas import (
     SignalResponse, TradeResponse, HealthResponse,
     GateResponse, WatchlistItem, AnalysisTriggerResponse,
+    Token, UserResponse
 )
+from pantheon.auth.jwt_handler import create_access_token
+from pantheon.auth.utils import verify_password
+from pantheon.auth.dependencies import get_current_active_user
 
 router = APIRouter(prefix="/api/v1", tags=["Pantheon API"])
+
+
+# ──────────────────────────────────────────────
+# AUTHENTICATION
+# ──────────────────────────────────────────────
+@router.post("/token", response_model=Token)
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: Session = Depends(get_db)
+):
+    user = db.exec(select(User).where(User.username == form_data.username)).first()
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/users/me", response_model=UserResponse)
+async def read_users_me(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
+    return current_user
 
 
 # ──────────────────────────────────────────────
@@ -131,9 +164,11 @@ async def _run_analysis_background(symbols: list[str] | None):
 @router.post("/trigger", response_model=AnalysisTriggerResponse)
 async def trigger_analysis(
     background_tasks: BackgroundTasks,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     symbols: list[str] | None = Query(None, description="Symbols to analyze (None = full watchlist)"),
 ):
     target_symbols = symbols or [w["symbol"] for w in load_watchlist()]
+
     background_tasks.add_task(_run_analysis_background, symbols)
     return AnalysisTriggerResponse(
         status="accepted",

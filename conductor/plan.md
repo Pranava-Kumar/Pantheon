@@ -1,0 +1,50 @@
+# Implementation Plan: Production Grade Enhancements & Hardening
+
+## Phase 1: Security & Authentication Hardening
+- [~] Task: Implement JWT Authentication Middleware
+    - [ ] Write unit tests for JWT token generation and validation.
+    - [ ] Create `pantheon/auth/jwt_handler.py` with encoding/decoding logic.
+    - [ ] Create FastAPI dependency (`Depends`) to secure endpoints.
+- [ ] Task: Configure CORS and API Rate Limiting
+    - [ ] Write tests for rate limiting logic.
+    - [ ] Update `pantheon/api/main.py` to restrict `allow_origins`.
+    - [ ] Implement a basic sliding window or token bucket rate limiter in memory (to be replaced by Redis later).
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md)
+
+## Phase 2: Redis Caching Layer
+- [ ] Task: Integrate Redis Connection Manager
+    - [ ] Update `tech-stack.md` to include Redis.
+    - [ ] Add `redis` to `requirements.txt`.
+    - [ ] Create `pantheon/db/redis_client.py` for connection pooling.
+- [ ] Task: Implement LLM Response and Data Caching
+    - [ ] Write unit tests for cache decorator/service.
+    - [ ] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
+    - [ ] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.
+- [ ] Task: Migrate API Rate Limiting to Redis
+    - [ ] Update the rate-limiting middleware created in Phase 1 to utilize the Redis backend.
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Redis Caching Layer' (Protocol in workflow.md)
+
+## Phase 3: Asynchronous Task Queues
+- [ ] Task: Implement Task Queue Framework (e.g., Celery/ARQ)
+    - [ ] Update `tech-stack.md` to include the chosen task queue.
+    - [ ] Configure the queue worker to use Redis as the message broker.
+    - [ ] Create basic worker entry point.
+- [ ] Task: Migrate Scheduled Jobs to Task Queue
+    - [ ] Refactor `pantheon/scripts/run_analysis.py` and `run_scheduler.py` (APScheduler) to trigger background tasks via the new queue.
+    - [ ] Ensure MMCI scoring and news extraction can run asynchronously.
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Asynchronous Task Queues' (Protocol in workflow.md)
+
+## Phase 4: Observability & Tracing
+- [ ] Task: Implement OpenTelemetry / LangSmith Tracing
+    - [ ] Add necessary OpenTelemetry/LangSmith packages to `requirements.txt`.
+    - [ ] Instrument `pantheon/api/main.py` for API route tracing.
+    - [ ] Instrument `pantheon/extractors/` to trace LLM calls (tokens, latency, prompts).
+- [ ] Task: Conductor - User Manual Verification 'Phase 4: Observability & Tracing' (Protocol in workflow.md)
+
+## Phase 5: Containerization (Docker Compose)
+- [ ] Task: Create Docker Artifacts
+    - [ ] Create `Dockerfile` for the FastAPI backend and worker processes.
+    - [ ] Create `docker-compose.yml` defining services: `api`, `worker`, `redis`, and optionally `db` (Postgres).
+- [ ] Task: Environment Configuration Updates
+    - [ ] Update `.env.example` to reflect new required variables (Redis URL, JWT Secret, Tracing Keys).
+- [ ] Task: Conductor - User Manual Verification 'Phase 5: Containerization' (Protocol in workflow.md)
