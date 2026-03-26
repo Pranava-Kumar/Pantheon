@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
     DATABASE_URL_ASYNC: str
+    REDIS_URL: str = "redis://localhost:6379/0"
 
-    @field_validator("DATABASE_URL", "DATABASE_URL_ASYNC", mode="before")
+    @field_validator("DATABASE_URL", "DATABASE_URL_ASYNC", "REDIS_URL", mode="before")
+
     @classmethod
     def strip_quotes(cls, v: str) -> str:
         """Strip surrounding quotes that GitHub Secrets may preserve from .env values."""

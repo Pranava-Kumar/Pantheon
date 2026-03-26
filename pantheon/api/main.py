@@ -14,9 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pantheon.config.settings import settings
+from contextlib import asynccontextmanager
 from pantheon.db.session import init_db
+from pantheon.db.redis_client import init_redis, close_redis
 from pantheon.api.routes import router
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    init_db()
+    await init_redis()
+    yield
+    # Shutdown
+    await close_redis()
 
 app = FastAPI(
     title="Project Pantheon",
@@ -24,9 +34,11 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Restrict CORS origins based on settings
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -39,12 +51,8 @@ app.add_middleware(
 app.include_router(router)
 
 
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-
 @app.get("/")
+
 def root():
     return {
         "name": "Project Pantheon",

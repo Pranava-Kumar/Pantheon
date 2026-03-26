@@ -17,7 +17,9 @@
 
 ## Data Persistence & Configuration
 - PostgreSQL (Asyncpg/Psycopg2): Primary relational database for market data, watchlists, and scores.
+- Redis: High-performance in-memory data store for caching LLM responses, market data, and rate limiting.
 - SQLModel (SQLAlchemy): Modern ORM for high data integrity and Python-native database interactions.
+
 - Alembic: Database migrations management for maintaining a robust schema.
 - PyYAML: Configuration management for model and category weights.
 
