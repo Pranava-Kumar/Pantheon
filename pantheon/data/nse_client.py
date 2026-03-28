@@ -112,7 +112,7 @@ class NSEClient:
                         return "CLOSED"
             return "CLOSED"  # Default if Capital Market segment not found
         except Exception as e:
-            self.logger.error(f"get_market_status error: {e}")
+            logger.error(f"get_market_status error: {e}")
             return "UNKNOWN"
 
     def get_top_gainers_losers(self) -> dict:

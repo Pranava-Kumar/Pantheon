@@ -15,6 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from contextlib import asynccontextmanager
+from pantheon.config.settings import settings
 from pantheon.db.session import init_db
 from pantheon.db.redis_client import init_redis, close_redis
 from pantheon.api.routes import router

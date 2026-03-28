@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import math
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pantheon.db.session import SessionLocal
 from pantheon.db.models import SignalRecord, PaperTrade
@@ -26,8 +26,10 @@ def compute_metrics() -> dict:
     db = SessionLocal()
     
     try:
-        # 1. SIGNALS WITH OUTCOMES
-        all_signals = db.query(SignalRecord).filter(SignalRecord.outcome != None).all()
+        # 1. SIGNALS WITH OUTCOMES - Use yield_per for memory efficiency
+        all_signals = db.query(SignalRecord).filter(
+            SignalRecord.outcome != None
+        ).yield_per(100).all()
         
         if not all_signals:
             return {
@@ -48,8 +50,8 @@ def compute_metrics() -> dict:
         directional = [s for s in all_signals if s.direction != "HOLD"]
         accuracy = correct / len(directional) if directional else 0.0
 
-        # 3. PAPER TRADE P&L
-        closed = db.query(PaperTrade).filter_by(is_open=False).all()
+        # 3. PAPER TRADE P&L - Use yield_per for memory efficiency
+        closed = db.query(PaperTrade).filter_by(is_open=False).yield_per(100).all()
         pnls = [t.pnl_pct for t in closed if t.pnl_pct is not None]
 
         # 4. SHARPE RATIO
@@ -97,8 +99,8 @@ def compute_metrics() -> dict:
         dissent_rate = (dissent_avoided / len(dissent_signals)) if dissent_signals else 0.0
 
         # 8. TRADING DAYS ELAPSED
-        oldest = min(s.timestamp for s in all_signals) if all_signals else datetime.utcnow()
-        days_elapsed = (datetime.utcnow() - oldest).days
+        oldest = min(s.timestamp for s in all_signals) if all_signals else datetime.now(timezone.utc)
+        days_elapsed = (datetime.now(timezone.utc) - oldest).days
 
         # 9. WEIGHT CONVERGENCE
         weights = load_weights()

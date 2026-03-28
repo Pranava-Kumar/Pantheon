@@ -9,8 +9,9 @@ from pantheon.data.nse_client import NSEClient
 from pantheon.data.screener_client import ScreenerClient
 from pantheon.data.news_client import NewsClient
 from pantheon.data.context_builder import ContextBuilder
+from pantheon.data.market_regime import detect_market_regime
 from pantheon.db.session import SessionLocal, init_db
-from pantheon.db.models import SignalRecord, PaperTrade
+from pantheon.db.models import SignalRecord, PaperTrade, TokenRecord
 from pantheon.config.settings import settings
 from pantheon.config import load_watchlist
 import sentry_sdk
@@ -21,23 +22,6 @@ sentry_sdk.init(
     profiles_sample_rate=1.0,
 )
 
-
-
-async def detect_regime(upstox: UpstoxClient) -> str:
-    try:
-        df = upstox.get_nifty50_history(days=250)
-        ma200 = df["close"].tail(200).mean()
-        last  = df["close"].iloc[-1]
-        
-        if last > ma200 * settings.BULL_MA200_MULTIPLIER:  
-            return "BULL"
-        if last < ma200 * settings.BEAR_MA200_MULTIPLIER:  
-            return "BEAR"
-        
-        return "SIDEWAYS"
-    except Exception as e:
-        logger.warning(f"Regime detection failed: {e}, defaulting to SIDEWAYS")
-        return "SIDEWAYS"
 
 async def save_signal(db, signal: dict, entry_price: float) -> None:
     record = SignalRecord(
@@ -72,14 +56,25 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
     init_db()
     logger.info("Starting daily MMCI analysis")
 
-    upstox   = UpstoxClient(access_token="dev_token")
+    # Load Upstox token from database
+    db = SessionLocal()
+    try:
+        from pantheon.db.models import TokenRecord
+        token_record = db.query(TokenRecord).filter_by(is_active=True).first()
+        if not token_record:
+            raise RuntimeError("No active Upstox token found. Please authenticate first.")
+        upstox_token = token_record.access_token
+    finally:
+        db.close()
+
+    upstox   = UpstoxClient(access_token=upstox_token)
     nse      = NSEClient()
     screener = ScreenerClient(settings.SCREENER_EMAIL, settings.SCREENER_PASSWORD)
     news     = NewsClient()
     builder  = ContextBuilder(upstox, nse, screener, news)
     graph    = build_graph()
 
-    regime = await detect_regime(upstox)
+    regime = await detect_market_regime(upstox)
     logger.info(f"Market regime: {regime}")
 
     watchlist = [w for w in load_watchlist()
@@ -102,18 +97,18 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
                     "model_signals": [],
                     "errors": []
                 }
-                
+
                 result = await graph.ainvoke(state)
                 signal = result["final_signal"]
                 entry_price = ctx.get("current_price") or 0.0
-                
+
                 await save_signal(db, signal, entry_price)
                 results.append(signal)
-                
+
                 logger.info(f"{sym}: {signal['direction']} S={signal['consensus_score']:.3f}")
             except Exception as e:
                 logger.error(f"{sym} analysis failed: {e}")
-                
+
             # 15s delay to stay under Google free tier 15 RPM limit (2 reqs/stock = 4 reqs/min max)
             await asyncio.sleep(15)
     finally:

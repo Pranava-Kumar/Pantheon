@@ -3,8 +3,7 @@ API route definitions for Project Pantheon.
 All endpoints are read-only except /trigger which kicks off analysis.
 """
 
-import asyncio
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Annotated
 from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
 
@@ -24,17 +23,22 @@ from pantheon.auth.utils import verify_password
 from pantheon.auth.dependencies import get_current_active_user
 from pantheon.api.rate_limiter import RateLimiter
 
+# Global rate limiter for general endpoints
+global_rate_limiter = RateLimiter(requests_limit=60, window_seconds=60)
+# Stricter rate limiter for authentication endpoints (prevent brute-force)
+auth_rate_limiter = RateLimiter(requests_limit=5, window_seconds=60)
+
 router = APIRouter(
-    prefix="/api/v1", 
+    prefix="/api/v1",
     tags=["Pantheon API"],
-    dependencies=[Depends(RateLimiter(requests_limit=60, window_seconds=60))]
+    dependencies=[Depends(global_rate_limiter)]
 )
 
 
 # ──────────────────────────────────────────────
 # AUTHENTICATION
 # ──────────────────────────────────────────────
-@router.post("/token", response_model=Token)
+@router.post("/token", response_model=Token, dependencies=[Depends(auth_rate_limiter)])
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Session = Depends(get_db)
@@ -67,7 +71,7 @@ def health_check(db: Session = Depends(get_db)):
     return HealthResponse(
         status="ok",
         database="connected",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         total_signals=total_signals,
         total_trades=total_trades,
     )

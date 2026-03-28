@@ -19,7 +19,7 @@
     - [x] Add `redis` to `requirements.txt`.
     - [x] Create `pantheon/db/redis_client.py` for connection pooling.
 
-- [ ] Task: Implement LLM Response and Data Caching
+- [~] Task: Implement LLM Response and Data Caching
     - [ ] Write unit tests for cache decorator/service.
     - [ ] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
     - [ ] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.

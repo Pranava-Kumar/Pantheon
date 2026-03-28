@@ -19,6 +19,7 @@ from pantheon.data.nse_client import NSEClient
 from pantheon.data.screener_client import ScreenerClient
 from pantheon.data.news_client import NewsClient
 from pantheon.data.context_builder import ContextBuilder
+from pantheon.data.market_regime import calculate_regime_from_dataframe
 from pantheon.agents.graph import build_graph
 from pantheon.config import load_watchlist
 
@@ -32,9 +33,21 @@ BOLD = '\033[1m'
 async def main(symbols: list[str] | None):
     if not symbols:
         symbols = [item["symbol"] for item in load_watchlist()]
-        
+
+    # Load Upstox token from database
+    from pantheon.db.session import SessionLocal
+    from pantheon.db.models import TokenRecord
+    db = SessionLocal()
+    try:
+        token_record = db.query(TokenRecord).filter_by(is_active=True).first()
+        if not token_record:
+            raise RuntimeError("No active Upstox token found. Please authenticate first.")
+        upstox_token = token_record.access_token
+    finally:
+        db.close()
+
     print("Initializing clients...")
-    upstox = UpstoxClient(access_token="dev_token")
+    upstox = UpstoxClient(access_token=upstox_token)
     nse = NSEClient()
     screener = ScreenerClient(settings.SCREENER_EMAIL, settings.SCREENER_PASSWORD)
     news = NewsClient()
@@ -42,22 +55,14 @@ async def main(symbols: list[str] | None):
 
     print("Detecting market regime...")
     nifty_df = upstox.get_nifty50_history(days=250)
-    
+
+    regime = calculate_regime_from_dataframe(nifty_df)
+
     if nifty_df is not None and not nifty_df.empty:
-        # Calculate 200-day moving average
         ma200 = nifty_df["close"].tail(200).mean()
         last = nifty_df["close"].iloc[-1]
-        
-        if last > ma200 * 1.02:
-            regime = "BULL"
-        elif last < ma200 * 0.98:
-            regime = "BEAR"
-        else:
-            regime = "SIDEWAYS"
-            
         print(f"Market Regime: {regime}  (Nifty={last:.0f}, MA200={ma200:.0f})")
     else:
-        regime = "SIDEWAYS"
         print("Failed to fetch Nifty50. Defaulting Market Regime: SIDEWAYS")
 
     print("Building LangGraph MMCI pipeline...")

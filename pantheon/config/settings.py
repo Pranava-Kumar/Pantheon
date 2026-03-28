@@ -77,11 +77,28 @@ class Settings(BaseSettings):
     NODE_CACHE_TTL_HOURS: int = 4
 
     # Security & Authentication
-    JWT_SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7" # openssl rand -hex 32
+    JWT_SECRET_KEY: str = ""  # Must be set via environment variable in production
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:8501", "http://localhost:3000"] # Streamlit & Common frontend dev ports
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:8501", "http://localhost:3000"]
 
+    @field_validator("JWT_SECRET_KEY")
+    @classmethod
+    def validate_jwt_secret(cls, v: str):
+        """Ensure JWT secret is properly configured and not using default value."""
+        # Skip validation if empty (for testing)
+        if not v:
+            return v
+        # Check against known default/insecure values
+        insecure_defaults = [
+            "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
+            "your-secret-key",
+            "secret",
+            "changeme",
+        ]
+        if v in insecure_defaults:
+            raise ValueError("JWT_SECRET_KEY must be changed from default value")
+        return v
 
     # Schedule (IST hours)
     ANALYSIS_HOUR_IST: int = 17
@@ -92,6 +109,7 @@ class Settings(BaseSettings):
         env_file=str(Path(__file__).resolve().parent.parent.parent / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
+        protected_namespaces=(),
     )
 
 settings = Settings()

@@ -40,12 +40,32 @@ def determine_actual_outcome(entry_price: float, current_price: float) -> str:
 async def _process_update_for_date(target_date: date) -> dict:
     logger.info(f"Running T+5 update for signals from {target_date}")
     db = SessionLocal()
-    
+
+    # Acquire distributed lock using Redis to prevent concurrent weight updates
+    from pantheon.db.redis_client import get_redis
+    redis = get_redis()
+    lock_key = "weight_update_lock"
+    lock_timeout = 300  # 5 minutes
+
+    if redis:
+        try:
+            # Try to acquire lock (non-blocking)
+            lock_acquired = await redis.set(lock_key, "locked", nx=True, ex=lock_timeout)
+            if not lock_acquired:
+                logger.info("Weight update already running, skipping")
+                return {}
+        except Exception as e:
+            logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
+            lock_acquired = True
+    else:
+        logger.warning("Redis not available, proceeding without distributed lock")
+        lock_acquired = True
+
     try:
         # Time boundaries for robust date filtering across SQL dialects
         start_t = datetime.combine(target_date, datetime.min.time())
         end_t = start_t + timedelta(days=1)
-        
+
         stmt = select(SignalRecord).where(
             SignalRecord.outcome == None,
             SignalRecord.timestamp >= start_t,
@@ -65,7 +85,7 @@ async def _process_update_for_date(target_date: date) -> dict:
             try:
                 instrument_key = upstox.get_instrument_key(record.symbol)
                 current_price = upstox.get_current_price(instrument_key, record.symbol)
-                
+
                 if not current_price or not record.entry_price:
                     continue
 
@@ -76,7 +96,7 @@ async def _process_update_for_date(target_date: date) -> dict:
 
                 # Update signal record
                 record.outcome = actual
-                record.outcome_date = datetime.utcnow()
+                record.outcome_date = datetime.now(datetime.timezone.utc)
 
                 # Update paper trade if exists
                 trade = db.exec(
@@ -85,10 +105,10 @@ async def _process_update_for_date(target_date: date) -> dict:
                         PaperTrade.is_open == True
                     )
                 ).first()
-                
+
                 if trade:
                     trade.exit_price = current_price
-                    trade.exit_date = datetime.utcnow()
+                    trade.exit_date = datetime.now(datetime.timezone.utc)
                     trade.pnl_pct = pct
                     trade.is_open = False
 
@@ -104,9 +124,15 @@ async def _process_update_for_date(target_date: date) -> dict:
         save_weights(new_weights)
         logger.info(f"Weights updated: {new_weights}")
         return new_weights
-        
+
     finally:
         db.close()
+        # Release lock
+        if redis and lock_acquired:
+            try:
+                await redis.delete(lock_key)
+            except Exception as e:
+                logger.warning(f"Failed to release lock: {e}")
 
 async def run_weight_update() -> dict:
     target_date = get_trading_days_ago(5)

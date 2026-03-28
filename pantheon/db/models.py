@@ -1,12 +1,12 @@
 """
 Database ORM models using SQLModel.
-All three tables: SignalRecord, PaperTrade, TokenRecord.
+Tables: SignalRecord, PaperTrade, TokenRecord, ModelWeight, User.
 """
 
 from sqlmodel import Field, SQLModel
 from sqlalchemy import Column, JSON
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -15,7 +15,7 @@ class SignalRecord(SQLModel, table=True):
 
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     symbol: str = Field(index=True)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     direction: str
     consensus_score: float
@@ -38,11 +38,11 @@ class PaperTrade(SQLModel, table=True):
     __tablename__ = "paper_trades"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    signal_run_id: str
-    symbol: str
+    signal_run_id: str = Field(index=True)
+    symbol: str = Field(index=True)
     direction: str
     entry_price: float
-    entry_date: datetime = Field(default_factory=datetime.utcnow)
+    entry_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     exit_price: Optional[float] = None
     exit_date: Optional[datetime] = None
@@ -60,8 +60,8 @@ class TokenRecord(SQLModel, table=True):
     access_token: str
     refresh_token: Optional[str] = None
     expires_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     is_active: bool = Field(default=True)
     metadata_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
@@ -72,7 +72,7 @@ class ModelWeight(SQLModel, table=True):
 
     model_id: str = Field(primary_key=True)   # e.g. "gemini_pro", "groq_qwen"
     weight: float = Field(default=0.20)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class User(SQLModel, table=True):
@@ -84,5 +84,5 @@ class User(SQLModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

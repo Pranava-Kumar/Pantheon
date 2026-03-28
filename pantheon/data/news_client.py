@@ -2,6 +2,7 @@ import sqlite3
 import time
 from datetime import datetime
 import feedparser
+import requests
 from loguru import logger
 
 RSS_FEEDS = [
@@ -12,6 +13,23 @@ RSS_FEEDS = [
     "https://ndtvprofit.com/business/feed",
     "https://www.financialexpress.com/market/feed/"
 ]
+
+# Create a session with timeout for feedparser to use
+_feedparser_session = requests.Session()
+_feedparser_session.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "application/rss+xml, application/xml, text/xml",
+})
+
+def _fetch_feed_with_timeout(url: str, timeout: int = 10) -> str:
+    """Fetch feed content with timeout."""
+    try:
+        resp = _feedparser_session.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.text
+    except Exception as e:
+        logger.warning(f"Failed to fetch feed {url}: {e}")
+        return ""
 
 class NewsClient:
     def __init__(self):
@@ -40,10 +58,14 @@ class NewsClient:
 
     def poll_and_store(self) -> int:
         count = 0
-        
+
         for feed_url in RSS_FEEDS:
             try:
-                parsed = feedparser.parse(feed_url)
+                # Fetch feed with timeout to prevent hanging
+                feed_content = _fetch_feed_with_timeout(feed_url)
+                if not feed_content:
+                    continue
+                parsed = feedparser.parse(feed_content)
                 feed_info = getattr(parsed, 'feed', {})
                 source = feed_info.get('title', feed_url)
                 
@@ -98,23 +120,24 @@ class NewsClient:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                
-                query = f"""
-                    SELECT title, source, published_at, summary, url 
+
+                # Use parameterized query to prevent SQL injection
+                query = """
+                    SELECT title, source, published_at, summary, url
                     FROM news_items
-                    WHERE fetched_at > datetime('now', '-{hours} hours') 
+                    WHERE fetched_at > datetime('now', '-' || ? || ' hours')
                     AND (
-                        title LIKE ? OR 
-                        title LIKE ? OR 
+                        title LIKE ? OR
+                        title LIKE ? OR
                         summary LIKE ?
                     )
                     ORDER BY fetched_at DESC
                     LIMIT 20
                 """
-                
-                cursor.execute(query, (f"%{company_name}%", f"%{symbol}%", f"%{company_name}%"))
+
+                cursor.execute(query, (str(hours), f"%{company_name}%", f"%{symbol}%", f"%{company_name}%"))
                 rows = cursor.fetchall()
-                
+
                 results = []
                 for row in rows:
                     results.append({
@@ -134,18 +157,19 @@ class NewsClient:
             with sqlite3.connect(self.db_path) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
-                
-                query = f"""
+
+                # Use parameterized query to prevent SQL injection
+                query = """
                     SELECT title, source, published_at, summary, url
                     FROM news_items
-                    WHERE fetched_at > datetime('now', '-{hours} hours')
+                    WHERE fetched_at > datetime('now', '-' || ? || ' hours')
                     ORDER BY fetched_at DESC
                     LIMIT 30
                 """
-                
-                cursor.execute(query)
+
+                cursor.execute(query, (str(hours),))
                 rows = cursor.fetchall()
-                
+
                 results = []
                 for row in rows:
                     results.append({

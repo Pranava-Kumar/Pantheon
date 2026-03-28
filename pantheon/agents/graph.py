@@ -181,9 +181,9 @@ def hold_output_node(state: dict):
 def route_after_dissent(state: dict):
     return "hold_output_node" if state.get("dissent_flag") else "consensus_scoring_node"
 
-def batch_separator_node(state: dict):
+async def batch_separator_node(state: dict):
     # Small sleep between model batches to mitigate shared rate limit pressure
-    time.sleep(1)
+    await asyncio.sleep(1)
     return {}
 
 def build_graph():
