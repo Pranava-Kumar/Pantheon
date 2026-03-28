@@ -61,6 +61,12 @@ htmlcov/
 # Build
 *.spec
 
+# Temporary files from code review sessions
+.qwen/
+3.9.0
+cache/
+git_diff_full.txt
+
 Research Docs/
 SRS_Project_Pantheon.md
 System_Design_Document.md
