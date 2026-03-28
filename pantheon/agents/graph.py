@@ -1,6 +1,4 @@
 from langgraph.graph import StateGraph, START, END
-from langgraph.types import RetryPolicy
-from langgraph.cache.memory import InMemoryCache
 from pantheon.agents.state import PantheonState
 from pantheon.extractors import get_all_extractors
 from pantheon.extractors.prompts import build_all_prompts
@@ -8,16 +6,14 @@ from pantheon.mmci.scoring import (compute_dissent_score, compute_consensus_scor
                            compute_sentiment_score, compute_technical_score,
                            compute_fundamental_score, compute_total_mmci_score,
                            determine_direction, compute_position_size,
-                           compute_risk_level, synthesize_reasoning,
-                           determine_consensus_timeframe)
+                           compute_risk_level)
 from pantheon.mmci.weights import WeightManager, INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
 from pantheon.mmci.models import ModelID, Direction, MarketRegime
 from pantheon.data.weights_store import load_weights
 from pantheon.config.settings import settings
 import asyncio
 import uuid
-from datetime import datetime
-import statistics
+from datetime import datetime, timezone
 from collections import Counter
 import time
 from pantheon.extractors.base import ModelSignal
@@ -48,24 +44,32 @@ def make_model_node(extractor):
     return node
 
 def dissent_check_node(state: dict):
+    """
+    Check for dissent among model signals using the standardized dissent score.
+    
+    Uses compute_dissent_score from scoring.py which implements a weighted
+    disagreement ratio rather than raw variance for more accurate dissent detection.
+    
+    Args:
+        state: Current graph state with model_signals.
+        
+    Returns:
+        Dictionary with dissent_score and dissent_flag.
+    """
     signals = state.get("model_signals", [])
     active = [s for s in signals if not s.get("failed", False)]
-    
+
     if len(active) < settings.MIN_MODELS_REQUIRED:
         return {
-            "dissent_score": 0.0, 
+            "dissent_score": 0.0,
             "dissent_flag": True,
             "errors": ["INSUFFICIENT_SIGNALS"]
         }
-        
-    signed = []
-    for s in active:
-        d_val = 1 if s["direction"] == "BUY" else (-1 if s["direction"] == "SELL" else 0)
-        signed.append(s["confidence"] * d_val)
-        
-    D = statistics.variance(signed) if len(signed) > 1 else 0.0
+
+    # Use standardized dissent score from scoring.py (not variance)
+    D = compute_dissent_score(signals)
     return {
-        "dissent_score": round(D, 6),
+        "dissent_score": D,
         "dissent_flag": D > settings.DISSENT_THRESHOLD
     }
 
@@ -126,12 +130,12 @@ def output_node(state: dict):
     signals = state.get("model_signals", [])
     active = [s for s in signals if not s.get("failed", False)]
     directions = [s["direction"] for s in active]
-    
+
     if directions:
         timeframe = Counter(s["timeframe"] for s in active).most_common(1)[0][0]
     else:
         timeframe = "MEDIUM"
-        
+
     final = {
         "run_id": str(state.get("run_id", uuid.uuid4())),
         "symbol": state.get("symbol", ""),
@@ -146,7 +150,7 @@ def output_node(state: dict):
         "model_signals": signals,
         "models_used": len(active),
         "reasoning": f"{state['final_direction']} signal. Consensus S={state['consensus_score']:.3f}, D={state['dissent_score']:.3f}",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     return {"final_signal": final}
 
@@ -154,12 +158,12 @@ def hold_output_node(state: dict):
     signals = state.get("model_signals", [])
     active = [s for s in signals if not s.get("failed", False)]
     directions = [s["direction"] for s in active]
-    
+
     if directions:
         timeframe = Counter(s["timeframe"] for s in active).most_common(1)[0][0]
     else:
         timeframe = "MEDIUM"
-        
+
     final = {
         "run_id": str(state.get("run_id", uuid.uuid4())),
         "symbol": state.get("symbol", ""),
@@ -174,7 +178,7 @@ def hold_output_node(state: dict):
         "model_signals": signals,
         "models_used": len(active),
         "reasoning": f"DISSENT or INSUFFICIENT SIGNALS. D={state.get('dissent_score', 0.0):.3f}",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     return {"final_signal": final}
 
@@ -182,19 +186,30 @@ def route_after_dissent(state: dict):
     return "hold_output_node" if state.get("dissent_flag") else "consensus_scoring_node"
 
 async def batch_separator_node(state: dict):
-    # Small sleep between model batches to mitigate shared rate limit pressure
-    await asyncio.sleep(1)
+    """
+    Introduces a small delay between model batches to mitigate shared rate limit pressure.
+    
+    This node runs after Groq models complete and before Gemini models start,
+    ensuring we don't exceed API rate limits when using multiple providers.
+    
+    Args:
+        state: Current graph state dictionary.
+        
+    Returns:
+        Empty dictionary (state passthrough).
+    """
+    await asyncio.sleep(settings.BATCH_SEPARATOR_DELAY_SECONDS)
     return {}
 
 def build_graph():
     builder = StateGraph(PantheonState)
     builder.add_node("prompt_builder_node", prompt_builder_node)
     builder.add_node("batch_separator_node", batch_separator_node)
-    
+
     extractors = get_all_extractors()
     groq_nodes = []
     gemini_nodes = []
-    
+
     for extractor in extractors:
         node_func = make_model_node(extractor)
         builder.add_node(node_func.__name__, node_func)
@@ -202,27 +217,27 @@ def build_graph():
             groq_nodes.append(node_func.__name__)
         else:
             gemini_nodes.append(node_func.__name__)
-        
+
     builder.add_node("dissent_check_node", dissent_check_node)
     builder.add_node("consensus_scoring_node", consensus_scoring_node)
     builder.add_node("position_sizing_node", position_sizing_node)
     builder.add_node("output_node", output_node)
     builder.add_node("hold_output_node", hold_output_node)
-    
+
     # Execution Flow:
     # 1. Build Prompts
     builder.add_edge(START, "prompt_builder_node")
-    
+
     # 2. Run Groq Models first
     for name in groq_nodes:
         builder.add_edge("prompt_builder_node", name)
         builder.add_edge(name, "batch_separator_node")
-        
+
     # 3. Run Gemini Models last
     for name in gemini_nodes:
         builder.add_edge("batch_separator_node", name)
         builder.add_edge(name, "dissent_check_node")
-        
+
     builder.add_conditional_edges(
         "dissent_check_node",
         route_after_dissent,
@@ -231,10 +246,12 @@ def build_graph():
             "consensus_scoring_node": "consensus_scoring_node"
         }
     )
-    
+
     builder.add_edge("consensus_scoring_node", "position_sizing_node")
     builder.add_edge("position_sizing_node", "output_node")
     builder.add_edge("output_node", END)
     builder.add_edge("hold_output_node", END)
-    
+
+    # Compile without checkpointer - each analysis is stateless and independent
+    # MemorySaver is not needed for stateless daily stock analysis
     return builder.compile()

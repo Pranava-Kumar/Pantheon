@@ -20,6 +20,7 @@ env/
 .env
 .env.local
 .env.production
+.env.test
 
 # Local database files — these are dev-only, Neon replaces them
 pantheon/*.db

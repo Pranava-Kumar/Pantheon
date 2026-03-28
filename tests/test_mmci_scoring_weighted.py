@@ -48,10 +48,10 @@ def test_compute_dissent_score():
         {"model_id": "a", "direction": "BUY", "confidence": 1.0},
         {"model_id": "b", "direction": "SELL", "confidence": 1.0},
     ]
-    # signed = [1.0, -1.0]
-    # variance = 2.0
+    # New implementation: normalized disagreement ratio
+    # 1 BUY, 1 SELL = 50% split -> dissent = 0.5
     score = compute_dissent_score(signals)
-    assert score == 2.0
+    assert score == 0.5
 
 def test_compute_technical_score_bullish():
     indicators = {

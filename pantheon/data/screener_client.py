@@ -2,22 +2,29 @@ import requests
 from bs4 import BeautifulSoup
 import sqlite3
 import json
+import asyncio
 import time
+from pathlib import Path
 from loguru import logger
 from datetime import datetime, timedelta
+
+from pantheon.config.settings import settings
 
 class ScreenerClient:
     def __init__(self, email: str, password: str):
         self.email = email
         self.password = password
         self._logged_in = False
-        
+
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         })
-        
-        self.db_path = "fundamentals_cache.db"
+
+        # Use configurable cache directory
+        cache_dir = Path(settings.CACHE_DIR)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path = str(cache_dir / "fundamentals_cache.db")
         self._init_cache_db()
         self._login()
 
@@ -29,6 +36,17 @@ class ScreenerClient:
                     CREATE TABLE IF NOT EXISTS fundamentals_cache
                     (symbol TEXT PRIMARY KEY, data TEXT, fetched_at TEXT)
                 """)
+                # Create index on fetched_at for efficient cleanup
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_fetched_at ON fundamentals_cache(fetched_at)
+                """)
+                conn.commit()
+                # Cleanup old entries (older than 7 days)
+                seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+                cursor.execute(
+                    "DELETE FROM fundamentals_cache WHERE fetched_at < ?",
+                    (seven_days_ago,)
+                )
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to init fundamentals cache db: {e}")

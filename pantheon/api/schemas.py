@@ -51,6 +51,7 @@ class HealthResponse(BaseModel):
     timestamp: datetime
     total_signals: int
     total_trades: int
+    redis: Optional[str] = "disconnected"
 
 
 class GateResponse(BaseModel):

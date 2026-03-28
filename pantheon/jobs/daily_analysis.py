@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 
 from pantheon.agents.graph import build_graph
@@ -81,38 +81,64 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
                  if symbols is None or w["symbol"] in symbols]
 
     results = []
-    db = SessionLocal()
-    try:
-        for stock in watchlist:
-            sym = stock["symbol"]
-            logger.info(f"Analyzing {sym}...")
+
+    # Use semaphore to control concurrency (3 stocks at a time to balance API limits)
+    semaphore = asyncio.Semaphore(3)
+
+    async def analyze_stock(stock: dict) -> dict | None:
+        """
+        Analyze a single stock with rate limiting.
+        Creates its own DB session for thread safety.
+        """
+        sym = stock["symbol"]
+        # Acquire semaphore FIRST to limit concurrent DB connections
+        async with semaphore:
+            db = SessionLocal()  # New session per task for thread safety
             try:
-                ctx = await builder.build(
-                    sym, stock["company"], stock["sector"], regime)
-                state = {
-                    "symbol": sym,
-                    "run_id": str(uuid.uuid4()),
-                    "market_regime": regime,
-                    "stock_context": ctx,
-                    "model_signals": [],
-                    "errors": []
-                }
+                logger.info(f"Analyzing {sym}...")
+                # Small delay BEFORE API call to space out requests
+                await asyncio.sleep(2)
+                try:
+                    ctx = await builder.build(
+                        sym, stock["company"], stock["sector"], regime)
+                    state = {
+                        "symbol": sym,
+                        "run_id": str(uuid.uuid4()),
+                        "market_regime": regime,
+                        "stock_context": ctx,
+                        "model_signals": [],
+                        "errors": []
+                    }
 
-                result = await graph.ainvoke(state)
-                signal = result["final_signal"]
-                entry_price = ctx.get("current_price") or 0.0
+                    result = await graph.ainvoke(state)
+                    signal = result["final_signal"]
+                    entry_price = ctx.get("current_price") or 0.0
 
-                await save_signal(db, signal, entry_price)
-                results.append(signal)
+                    await save_signal(db, signal, entry_price)
 
-                logger.info(f"{sym}: {signal['direction']} S={signal['consensus_score']:.3f}")
-            except Exception as e:
-                logger.error(f"{sym} analysis failed: {e}")
+                    logger.info(f"{sym}: {signal['direction']} S={signal['consensus_score']:.3f}")
+                    return signal
+                except Exception as e:
+                    logger.error(f"{sym} analysis failed: {e}")
+                    return None
+            finally:
+                db.close()
 
-            # 15s delay to stay under Google free tier 15 RPM limit (2 reqs/stock = 4 reqs/min max)
-            await asyncio.sleep(15)
-    finally:
-        db.close()
+    try:
+        # Process stocks in batches with controlled concurrency
+        tasks = [analyze_stock(stock) for stock in watchlist]
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Log individual exceptions before filtering
+        for i, result in enumerate(batch_results):
+            if isinstance(result, Exception):
+                logger.error(f"Stock {watchlist[i]['symbol']} analysis failed with exception: {type(result).__name__}: {result}")
+
+        # Filter out None results and exceptions
+        results = [r for r in batch_results if r is not None and not isinstance(r, Exception)]
+
+    except Exception as e:
+        logger.error(f"Batch analysis failed: {e}")
 
     logger.info(f"Analysis complete. {len(results)} signals stored.")
     return results

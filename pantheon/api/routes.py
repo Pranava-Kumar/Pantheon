@@ -3,11 +3,13 @@ API route definitions for Project Pantheon.
 All endpoints are read-only except /trigger which kicks off analysis.
 """
 
+import asyncio
 from datetime import datetime, date, timezone
 from typing import Annotated
-from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
 
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from loguru import logger
 from sqlmodel import Session, select, func, col
 
 from pantheon.db.session import get_db, init_db
@@ -21,12 +23,7 @@ from pantheon.api.schemas import (
 from pantheon.auth.jwt_handler import create_access_token
 from pantheon.auth.utils import verify_password
 from pantheon.auth.dependencies import get_current_active_user
-from pantheon.api.rate_limiter import RateLimiter
-
-# Global rate limiter for general endpoints
-global_rate_limiter = RateLimiter(requests_limit=60, window_seconds=60)
-# Stricter rate limiter for authentication endpoints (prevent brute-force)
-auth_rate_limiter = RateLimiter(requests_limit=5, window_seconds=60)
+from pantheon.api.rate_limiters import global_rate_limiter, auth_rate_limiter, trigger_rate_limiter
 
 router = APIRouter(
     prefix="/api/v1",
@@ -65,15 +62,35 @@ async def read_users_me(
 # HEALTH
 # ──────────────────────────────────────────────
 @router.get("/health", response_model=HealthResponse)
-def health_check(db: Session = Depends(get_db)):
+async def health_check(db: Session = Depends(get_db)):
+    """Comprehensive health check for database and external services."""
+    from pantheon.db.redis_client import get_redis
+    
     total_signals = db.exec(select(func.count(SignalRecord.run_id))).one()
     total_trades = db.exec(select(func.count(PaperTrade.id))).one()
+    
+    # Check Redis connectivity with timeout
+    redis_status = "disconnected"
+    redis = get_redis()
+    if redis:
+        try:
+            # 2-second timeout to avoid false positives while allowing for network latency
+            await asyncio.wait_for(redis.ping(), timeout=2.0)
+            redis_status = "connected"
+        except asyncio.TimeoutError:
+            redis_status = "timeout"
+        except Exception as redis_error:
+            # Log specific Redis error for observability
+            logger.warning(f"Redis health check failed: {type(redis_error).__name__}: {redis_error}")
+            redis_status = "error"
+    
     return HealthResponse(
         status="ok",
         database="connected",
         timestamp=datetime.now(timezone.utc),
         total_signals=total_signals,
         total_trades=total_trades,
+        redis=redis_status,
     )
 
 
@@ -156,7 +173,9 @@ def get_watchlist():
 # EXIT GATE
 # ──────────────────────────────────────────────
 @router.get("/gate", response_model=GateResponse)
-def get_exit_gate():
+def get_exit_gate(
+    current_user: Annotated[User, Depends(get_current_active_user)]
+):
     from pantheon.jobs.paper_trading_tracker import check_exit_gate
     result = check_exit_gate()
     return GateResponse(**result)
@@ -165,12 +184,14 @@ def get_exit_gate():
 # ──────────────────────────────────────────────
 # TRIGGER (for cron-job.org or manual use)
 # ──────────────────────────────────────────────
+# Note: Uses trigger_rate_limiter from pantheon.api.rate_limiters (5 per hour)
+
 async def _run_analysis_background(symbols: list[str] | None):
     from pantheon.jobs.daily_analysis import run_daily_analysis
     await run_daily_analysis(symbols)
 
 
-@router.post("/trigger", response_model=AnalysisTriggerResponse)
+@router.post("/trigger", response_model=AnalysisTriggerResponse, dependencies=[Depends(trigger_rate_limiter)])
 async def trigger_analysis(
     background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_active_user)],

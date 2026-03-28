@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 
 from pantheon.data.upstox_client import UpstoxClient
@@ -56,18 +56,18 @@ class ContextBuilder:
             "sector": sector,
             "market_regime": market_regime,
             "current_price": current_price,
-            "as_of": datetime.utcnow().isoformat(),
-            
+            "as_of": datetime.now(timezone.utc).isoformat(),
+
             # Price history - last 10 rows
             "price_summary": df.tail(10).to_dict('records') if df is not None and not df.empty else [],
-            
+
             "technicals": technicals or {},
             "fundamentals": fundamentals or {},
-            
+
             "bulk_deals": nse_result.get('bulk_deals', []),
             "fii_net_cash": nse_result.get('fii_net_cash', 0.0),
             "dii_net_cash": nse_result.get('dii_net_cash', 0.0),
-            
+
             "news": news_items[:15] if news_items else [],
             "news_count": len(news_items) if news_items else 0,
         }

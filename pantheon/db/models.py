@@ -15,7 +15,7 @@ class SignalRecord(SQLModel, table=True):
 
     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     symbol: str = Field(index=True)
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
 
     direction: str
     consensus_score: float
@@ -29,8 +29,8 @@ class SignalRecord(SQLModel, table=True):
     model_signals: dict = Field(default_factory=dict, sa_column=Column(JSON))
     reasoning: str
 
-    outcome: Optional[str] = Field(default=None)
-    outcome_date: Optional[datetime] = Field(default=None)
+    outcome: Optional[str] = Field(default=None, index=True)
+    outcome_date: Optional[datetime] = Field(default=None, index=True)
     entry_price: Optional[float] = Field(default=None)
 
 
@@ -49,7 +49,7 @@ class PaperTrade(SQLModel, table=True):
     pnl_pct: Optional[float] = None
 
     regime_at_entry: str
-    is_open: bool = Field(default=True)
+    is_open: bool = Field(default=True, index=True)
 
 
 class TokenRecord(SQLModel, table=True):

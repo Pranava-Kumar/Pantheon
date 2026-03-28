@@ -19,15 +19,24 @@ from pantheon.config.settings import settings
 from pantheon.db.session import init_db
 from pantheon.db.redis_client import init_redis, close_redis
 from pantheon.api.routes import router
+from pantheon.api.rate_limiters import global_rate_limiter, auth_rate_limiter, trigger_rate_limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     init_db()
     await init_redis()
+    # Start rate limiter cleanup tasks
+    await global_rate_limiter.start_cleanup_task()
+    await auth_rate_limiter.start_cleanup_task()
+    await trigger_rate_limiter.start_cleanup_task()
     yield
     # Shutdown
     await close_redis()
+    # Stop rate limiter cleanup tasks
+    await global_rate_limiter.stop_cleanup_task()
+    await auth_rate_limiter.stop_cleanup_task()
+    await trigger_rate_limiter.stop_cleanup_task()
 
 app = FastAPI(
     title="Project Pantheon",

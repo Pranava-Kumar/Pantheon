@@ -14,18 +14,28 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md) bb2e69f
 
 ## Phase 2: Redis Caching Layer
-- [x] Task: Integrate Redis Connection Manager 35b73bc
+- [x] Task: Integrate Redis Connection Manager 35b7bc
     - [x] Update `tech-stack.md` to include Redis.
     - [x] Add `redis` to `requirements.txt`.
     - [x] Create `pantheon/db/redis_client.py` for connection pooling.
 
-- [~] Task: Implement LLM Response and Data Caching
-    - [ ] Write unit tests for cache decorator/service.
-    - [ ] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
-    - [ ] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.
-- [ ] Task: Migrate API Rate Limiting to Redis
-    - [ ] Update the rate-limiting middleware created in Phase 1 to utilize the Redis backend.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Redis Caching Layer' (Protocol in workflow.md)
+- [x] Task: Implement LLM Response and Data Caching
+    - [x] Write unit tests for cache decorator/service.
+    - [x] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
+    - [x] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.
+    
+- [x] Task: Migrate API Rate Limiting to Redis
+    - [x] Update the rate-limiting middleware created in Phase 1 to utilize the Redis backend.
+    - [x] Implement distributed lock for weight updates using Redis.
+    
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Redis Caching Layer' (Protocol in workflow.md)
+
+**Note:** Redis is REQUIRED for production deployments. Without Redis:
+- Weight updates may have race conditions (multiple instances updating simultaneously)
+- Rate limiting only works within a single process (not across workers)
+- Caching falls back to local SQLite (less efficient)
+
+The system degrades gracefully without Redis but should NOT be deployed to production without it.
 
 ## Phase 3: Asynchronous Task Queues
 - [ ] Task: Implement Task Queue Framework (e.g., Celery/ARQ)

@@ -24,13 +24,13 @@ GATE_CRITERIA = {
 
 def compute_metrics() -> dict:
     db = SessionLocal()
-    
+
     try:
-        # 1. SIGNALS WITH OUTCOMES - Use yield_per for memory efficiency
-        all_signals = db.query(SignalRecord).filter(
+        # 1. SIGNALS WITH OUTCOMES - Use proper iteration without .all()
+        all_signals = list(db.query(SignalRecord).filter(
             SignalRecord.outcome != None
-        ).yield_per(100).all()
-        
+        ).yield_per(100))
+
         if not all_signals:
             return {
                 "total_signals": 0,
@@ -50,8 +50,8 @@ def compute_metrics() -> dict:
         directional = [s for s in all_signals if s.direction != "HOLD"]
         accuracy = correct / len(directional) if directional else 0.0
 
-        # 3. PAPER TRADE P&L - Use yield_per for memory efficiency
-        closed = db.query(PaperTrade).filter_by(is_open=False).yield_per(100).all()
+        # 3. PAPER TRADE P&L - Use proper iteration without .all()
+        closed = list(db.query(PaperTrade).filter_by(is_open=False).yield_per(100))
         pnls = [t.pnl_pct for t in closed if t.pnl_pct is not None]
 
         # 4. SHARPE RATIO
@@ -72,10 +72,10 @@ def compute_metrics() -> dict:
                 cumulative.append(running)
             peak = 100.0
             for val in cumulative:
-                if val > peak: 
+                if val > peak:
                     peak = val
                 dd = (peak - val) / peak * 100
-                if dd > max_dd: 
+                if dd > max_dd:
                     max_dd = dd
 
         # 6. REGIME-STRATIFIED RETURNS
@@ -83,7 +83,7 @@ def compute_metrics() -> dict:
         for t in closed:
             if t.pnl_pct is not None and t.regime_at_entry in regime_pnl:
                 regime_pnl[t.regime_at_entry].append(t.pnl_pct)
-                
+
         regime_alpha = {
             r: statistics.mean(v) > 0
             for r, v in regime_pnl.items() if v
@@ -98,9 +98,10 @@ def compute_metrics() -> dict:
         )
         dissent_rate = (dissent_avoided / len(dissent_signals)) if dissent_signals else 0.0
 
-        # 8. TRADING DAYS ELAPSED
-        oldest = min(s.timestamp for s in all_signals) if all_signals else datetime.now(timezone.utc)
-        days_elapsed = (datetime.now(timezone.utc) - oldest).days
+        # 8. TRADING DAYS ELAPSED - Use SQL aggregation instead of Python min()
+        oldest = db.query(SignalRecord.timestamp).order_by(SignalRecord.timestamp.asc()).first()
+        oldest_ts = oldest[0] if oldest else datetime.now(timezone.utc)
+        days_elapsed = (datetime.now(timezone.utc) - oldest_ts).days
 
         # 9. WEIGHT CONVERGENCE
         weights = load_weights()
@@ -109,7 +110,7 @@ def compute_metrics() -> dict:
             weight_var = statistics.variance(w_values) if len(w_values) > 1 else 1.0
         else:
             weight_var = 1.0
-            
+
         return {
             "total_signals":    len(all_signals),
             "total_trades":     len(closed),
@@ -120,7 +121,7 @@ def compute_metrics() -> dict:
             "dissent_rate":     round(dissent_rate, 4),
             "days_elapsed":     days_elapsed,
             "weight_variance":  round(weight_var, 6),
-            "regime_pnl":       {r: round(statistics.mean(v), 4) if v else None 
+            "regime_pnl":       {r: round(statistics.mean(v), 4) if v else None
                                  for r, v in regime_pnl.items()},
         }
     except Exception as e:

@@ -70,11 +70,14 @@ class Settings(BaseSettings):
     GEMINI_PRO_DAILY_BUDGET: int = 90
     GEMINI_FLASH_DAILY_BUDGET: int = 200
     BATCH_SIZE: int = 10
+    GOOGLE_API_DELAY_SECONDS: int = 15  # Delay between stocks to stay under free tier limit
+    BATCH_SEPARATOR_DELAY_SECONDS: int = 1  # Delay between model batches
 
     # Caching
     FUNDAMENTALS_CACHE_DAYS: int = 7
     NEWS_RETENTION_HOURS: int = 72
     NODE_CACHE_TTL_HOURS: int = 4
+    CACHE_DIR: str = "./cache"  # Directory for SQLite cache files (relative to project root)
 
     # Security & Authentication
     JWT_SECRET_KEY: str = ""  # Must be set via environment variable in production
@@ -82,13 +85,44 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     ALLOWED_ORIGINS: list[str] = ["http://localhost:8501", "http://localhost:3000"]
 
+    @field_validator("CACHE_DIR")
+    @classmethod
+    def resolve_cache_dir(cls, v: str) -> str:
+        """Convert CACHE_DIR to absolute path and validate it's safe."""
+        if not Path(v).is_absolute():
+            v = str(Path(__file__).resolve().parent.parent.parent / v)
+
+        # Validate cache directory is not a protected path
+        resolved = Path(v).resolve()
+        # Check against protected system paths (Unix and Windows)
+        protected_paths = [
+            # Unix/Linux protected paths
+            Path("/etc"), Path("/usr"), Path("/bin"), Path("/sbin"), Path("/boot"), Path("/dev"),
+            # Windows protected paths
+            Path("C:\\Windows"), Path("C:\\Program Files"), Path("C:\\Program Files (x86)"),
+            Path("C:\\Windows\\System32"), Path("C:\\Windows\\SysWOW64")
+        ]
+        for protected in protected_paths:
+            try:
+                resolved.relative_to(protected)
+                raise ValueError(f"CACHE_DIR cannot be set to protected path: {v}")
+            except ValueError:
+                pass  # Path is not relative to this protected path, continue checking
+
+        return v
+
     @field_validator("JWT_SECRET_KEY")
     @classmethod
     def validate_jwt_secret(cls, v: str):
         """Ensure JWT secret is properly configured and not using default value."""
-        # Skip validation if empty (for testing)
-        if not v:
-            return v
+        # Require non-empty JWT secret for security in production
+        if not v or not v.strip():
+            # Allow empty secret for development/testing environments
+            import os
+            if os.getenv("ENVIRONMENT") == "production":
+                raise ValueError("JWT_SECRET_KEY cannot be empty in production. Set a secure random value.")
+            # Return a default for non-production (will be overridden by .env in most cases)
+            return "dev-secret-key-change-in-production"
         # Check against known default/insecure values
         insecure_defaults = [
             "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",

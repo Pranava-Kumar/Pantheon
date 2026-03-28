@@ -6,7 +6,7 @@ GitHub Actions runners have ephemeral filesystems, so weights
 must be stored in the database to persist across runs.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from loguru import logger
 from sqlmodel import select
 
@@ -37,17 +37,18 @@ def save_weights(weights: dict) -> None:
     try:
         db = SessionLocal()
         try:
+            now = datetime.now(timezone.utc)
             for model_id, weight in weights.items():
                 existing = db.get(ModelWeight, model_id)
                 if existing:
                     existing.weight = weight
-                    existing.updated_at = datetime.utcnow()
+                    existing.updated_at = now
                     db.add(existing)
                 else:
                     db.add(ModelWeight(
                         model_id=model_id,
                         weight=weight,
-                        updated_at=datetime.utcnow(),
+                        updated_at=now,
                     ))
             db.commit()
             logger.info("Weights saved to database")

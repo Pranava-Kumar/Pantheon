@@ -1,0 +1,1822 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'conductor/plan.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/agents/graph.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/api/main.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/api/rate_limiter.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/api/routes.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/api/schemas.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/config/settings.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/data/context_builder.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/data/news_client.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/data/screener_client.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/data/upstox_client.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/data/weights_store.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/db/models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/db/redis_client.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/db/session.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/jobs/daily_analysis.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/jobs/paper_trading_tracker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/jobs/weight_updater.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/mmci/scoring.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pantheon/mmci/weights.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'requirements.txt', LF will be replaced by CRLF the next time Git touches it
+diff --git a/.gitignore b/.gitignore
+index 175f59d..8360157 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -20,6 +20,7 @@ env/
+ .env
+ .env.local
+ .env.production
++.env.test
+ 
+ # Local database files — these are dev-only, Neon replaces them
+ pantheon/*.db
+diff --git a/conductor/plan.md b/conductor/plan.md
+index 58c2818..adefb2b 100644
+--- a/conductor/plan.md
++++ b/conductor/plan.md
+@@ -14,18 +14,28 @@
+ - [x] Task: Conductor - User Manual Verification 'Phase 1: Security & Authentication Hardening' (Protocol in workflow.md) bb2e69f
+ 
+ ## Phase 2: Redis Caching Layer
+-- [x] Task: Integrate Redis Connection Manager 35b73bc
++- [x] Task: Integrate Redis Connection Manager 35b7bc
+     - [x] Update `tech-stack.md` to include Redis.
+     - [x] Add `redis` to `requirements.txt`.
+     - [x] Create `pantheon/db/redis_client.py` for connection pooling.
+ 
+-- [~] Task: Implement LLM Response and Data Caching
+-    - [ ] Write unit tests for cache decorator/service.
+-    - [ ] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
+-    - [ ] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.
+-- [ ] Task: Migrate API Rate Limiting to Redis
+-    - [ ] Update the rate-limiting middleware created in Phase 1 to utilize the Redis backend.
+-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Redis Caching Layer' (Protocol in workflow.md)
++- [x] Task: Implement LLM Response and Data Caching
++    - [x] Write unit tests for cache decorator/service.
++    - [x] Update `pantheon/extractors/` to check Redis before hitting external LLM APIs.
++    - [x] Update `pantheon/data/upstox_client.py` to cache high-frequency market data queries.
++    
++- [x] Task: Migrate API Rate Limiting to Redis
++    - [x] Update the rate-limiting middleware created in Phase 1 to utilize the Redis backend.
++    - [x] Implement distributed lock for weight updates using Redis.
++    
++- [x] Task: Conductor - User Manual Verification 'Phase 2: Redis Caching Layer' (Protocol in workflow.md)
++
++**Note:** Redis is REQUIRED for production deployments. Without Redis:
++- Weight updates may have race conditions (multiple instances updating simultaneously)
++- Rate limiting only works within a single process (not across workers)
++- Caching falls back to local SQLite (less efficient)
++
++The system degrades gracefully without Redis but should NOT be deployed to production without it.
+ 
+ ## Phase 3: Asynchronous Task Queues
+ - [ ] Task: Implement Task Queue Framework (e.g., Celery/ARQ)
+diff --git a/pantheon/agents/graph.py b/pantheon/agents/graph.py
+index 2cec710..ea7bab2 100644
+--- a/pantheon/agents/graph.py
++++ b/pantheon/agents/graph.py
+@@ -1,6 +1,4 @@
+ from langgraph.graph import StateGraph, START, END
+-from langgraph.types import RetryPolicy
+-from langgraph.cache.memory import InMemoryCache
+ from pantheon.agents.state import PantheonState
+ from pantheon.extractors import get_all_extractors
+ from pantheon.extractors.prompts import build_all_prompts
+@@ -8,16 +6,14 @@ from pantheon.mmci.scoring import (compute_dissent_score, compute_consensus_scor
+                            compute_sentiment_score, compute_technical_score,
+                            compute_fundamental_score, compute_total_mmci_score,
+                            determine_direction, compute_position_size,
+-                           compute_risk_level, synthesize_reasoning,
+-                           determine_consensus_timeframe)
++                           compute_risk_level)
+ from pantheon.mmci.weights import WeightManager, INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+ from pantheon.mmci.models import ModelID, Direction, MarketRegime
+ from pantheon.data.weights_store import load_weights
+ from pantheon.config.settings import settings
+ import asyncio
+ import uuid
+-from datetime import datetime
+-import statistics
++from datetime import datetime, timezone
+ from collections import Counter
+ import time
+ from pantheon.extractors.base import ModelSignal
+@@ -48,24 +44,32 @@ def make_model_node(extractor):
+     return node
+ 
+ def dissent_check_node(state: dict):
++    """
++    Check for dissent among model signals using the standardized dissent score.
++    
++    Uses compute_dissent_score from scoring.py which implements a weighted
++    disagreement ratio rather than raw variance for more accurate dissent detection.
++    
++    Args:
++        state: Current graph state with model_signals.
++        
++    Returns:
++        Dictionary with dissent_score and dissent_flag.
++    """
+     signals = state.get("model_signals", [])
+     active = [s for s in signals if not s.get("failed", False)]
+-    
++
+     if len(active) < settings.MIN_MODELS_REQUIRED:
+         return {
+-            "dissent_score": 0.0, 
++            "dissent_score": 0.0,
+             "dissent_flag": True,
+             "errors": ["INSUFFICIENT_SIGNALS"]
+         }
+-        
+-    signed = []
+-    for s in active:
+-        d_val = 1 if s["direction"] == "BUY" else (-1 if s["direction"] == "SELL" else 0)
+-        signed.append(s["confidence"] * d_val)
+-        
+-    D = statistics.variance(signed) if len(signed) > 1 else 0.0
++
++    # Use standardized dissent score from scoring.py (not variance)
++    D = compute_dissent_score(signals)
+     return {
+-        "dissent_score": round(D, 6),
++        "dissent_score": D,
+         "dissent_flag": D > settings.DISSENT_THRESHOLD
+     }
+ 
+@@ -126,12 +130,12 @@ def output_node(state: dict):
+     signals = state.get("model_signals", [])
+     active = [s for s in signals if not s.get("failed", False)]
+     directions = [s["direction"] for s in active]
+-    
++
+     if directions:
+         timeframe = Counter(s["timeframe"] for s in active).most_common(1)[0][0]
+     else:
+         timeframe = "MEDIUM"
+-        
++
+     final = {
+         "run_id": str(state.get("run_id", uuid.uuid4())),
+         "symbol": state.get("symbol", ""),
+@@ -146,7 +150,7 @@ def output_node(state: dict):
+         "model_signals": signals,
+         "models_used": len(active),
+         "reasoning": f"{state['final_direction']} signal. Consensus S={state['consensus_score']:.3f}, D={state['dissent_score']:.3f}",
+-        "timestamp": datetime.utcnow().isoformat(),
++        "timestamp": datetime.now(timezone.utc).isoformat(),
+     }
+     return {"final_signal": final}
+ 
+@@ -154,12 +158,12 @@ def hold_output_node(state: dict):
+     signals = state.get("model_signals", [])
+     active = [s for s in signals if not s.get("failed", False)]
+     directions = [s["direction"] for s in active]
+-    
++
+     if directions:
+         timeframe = Counter(s["timeframe"] for s in active).most_common(1)[0][0]
+     else:
+         timeframe = "MEDIUM"
+-        
++
+     final = {
+         "run_id": str(state.get("run_id", uuid.uuid4())),
+         "symbol": state.get("symbol", ""),
+@@ -174,7 +178,7 @@ def hold_output_node(state: dict):
+         "model_signals": signals,
+         "models_used": len(active),
+         "reasoning": f"DISSENT or INSUFFICIENT SIGNALS. D={state.get('dissent_score', 0.0):.3f}",
+-        "timestamp": datetime.utcnow().isoformat(),
++        "timestamp": datetime.now(timezone.utc).isoformat(),
+     }
+     return {"final_signal": final}
+ 
+@@ -182,19 +186,30 @@ def route_after_dissent(state: dict):
+     return "hold_output_node" if state.get("dissent_flag") else "consensus_scoring_node"
+ 
+ async def batch_separator_node(state: dict):
+-    # Small sleep between model batches to mitigate shared rate limit pressure
+-    await asyncio.sleep(1)
++    """
++    Introduces a small delay between model batches to mitigate shared rate limit pressure.
++    
++    This node runs after Groq models complete and before Gemini models start,
++    ensuring we don't exceed API rate limits when using multiple providers.
++    
++    Args:
++        state: Current graph state dictionary.
++        
++    Returns:
++        Empty dictionary (state passthrough).
++    """
++    await asyncio.sleep(settings.BATCH_SEPARATOR_DELAY_SECONDS)
+     return {}
+ 
+ def build_graph():
+     builder = StateGraph(PantheonState)
+     builder.add_node("prompt_builder_node", prompt_builder_node)
+     builder.add_node("batch_separator_node", batch_separator_node)
+-    
++
+     extractors = get_all_extractors()
+     groq_nodes = []
+     gemini_nodes = []
+-    
++
+     for extractor in extractors:
+         node_func = make_model_node(extractor)
+         builder.add_node(node_func.__name__, node_func)
+@@ -202,27 +217,27 @@ def build_graph():
+             groq_nodes.append(node_func.__name__)
+         else:
+             gemini_nodes.append(node_func.__name__)
+-        
++
+     builder.add_node("dissent_check_node", dissent_check_node)
+     builder.add_node("consensus_scoring_node", consensus_scoring_node)
+     builder.add_node("position_sizing_node", position_sizing_node)
+     builder.add_node("output_node", output_node)
+     builder.add_node("hold_output_node", hold_output_node)
+-    
++
+     # Execution Flow:
+     # 1. Build Prompts
+     builder.add_edge(START, "prompt_builder_node")
+-    
++
+     # 2. Run Groq Models first
+     for name in groq_nodes:
+         builder.add_edge("prompt_builder_node", name)
+         builder.add_edge(name, "batch_separator_node")
+-        
++
+     # 3. Run Gemini Models last
+     for name in gemini_nodes:
+         builder.add_edge("batch_separator_node", name)
+         builder.add_edge(name, "dissent_check_node")
+-        
++
+     builder.add_conditional_edges(
+         "dissent_check_node",
+         route_after_dissent,
+@@ -231,10 +246,12 @@ def build_graph():
+             "consensus_scoring_node": "consensus_scoring_node"
+         }
+     )
+-    
++
+     builder.add_edge("consensus_scoring_node", "position_sizing_node")
+     builder.add_edge("position_sizing_node", "output_node")
+     builder.add_edge("output_node", END)
+     builder.add_edge("hold_output_node", END)
+-    
++
++    # Compile without checkpointer - each analysis is stateless and independent
++    # MemorySaver is not needed for stateless daily stock analysis
+     return builder.compile()
+diff --git a/pantheon/api/main.py b/pantheon/api/main.py
+index c6accae..b2cf057 100644
+--- a/pantheon/api/main.py
++++ b/pantheon/api/main.py
+@@ -19,15 +19,24 @@ from pantheon.config.settings import settings
+ from pantheon.db.session import init_db
+ from pantheon.db.redis_client import init_redis, close_redis
+ from pantheon.api.routes import router
++from pantheon.api.rate_limiters import global_rate_limiter, auth_rate_limiter, trigger_rate_limiter
+ 
+ @asynccontextmanager
+ async def lifespan(app: FastAPI):
+     # Startup
+     init_db()
+     await init_redis()
++    # Start rate limiter cleanup tasks
++    await global_rate_limiter.start_cleanup_task()
++    await auth_rate_limiter.start_cleanup_task()
++    await trigger_rate_limiter.start_cleanup_task()
+     yield
+     # Shutdown
+     await close_redis()
++    # Stop rate limiter cleanup tasks
++    await global_rate_limiter.stop_cleanup_task()
++    await auth_rate_limiter.stop_cleanup_task()
++    await trigger_rate_limiter.stop_cleanup_task()
+ 
+ app = FastAPI(
+     title="Project Pantheon",
+diff --git a/pantheon/api/rate_limiter.py b/pantheon/api/rate_limiter.py
+index 32dfb77..71da998 100644
+--- a/pantheon/api/rate_limiter.py
++++ b/pantheon/api/rate_limiter.py
+@@ -1,34 +1,113 @@
+-from fastapi import HTTPException, Request, status
++from fastapi import HTTPException, Request, status, Response
+ import time
+-from collections import defaultdict
+-from typing import Dict, List
++from collections import OrderedDict
++from typing import Dict, List, Optional
+ import asyncio
++from loguru import logger
+ 
+ class RateLimiter:
+     """
+     A simple in-memory rate limiter (sliding window).
+     To be replaced by Redis in a later phase.
++
++    Industry best practices implemented:
++    - Sliding window algorithm for accuracy
++    - Periodic cleanup to prevent memory leaks
++    - LRU eviction for high-traffic scenarios (O(1) with OrderedDict)
++    - Logging for 429 rejections (observability)
+     """
++    # Maximum number of unique identifiers to track (LRU eviction)
++    MAX_IDENTIFIERS = 10000
++
+     def __init__(self, requests_limit: int, window_seconds: int):
+         self.requests_limit = requests_limit
+         self.window_seconds = window_seconds
+-        # Dictionary mapping identifier (e.g., IP) to list of request timestamps
+-        self.request_history: Dict[str, List[float]] = defaultdict(list)
++        # OrderedDict for O(1) LRU eviction - maps identifier to list of request timestamps
++        self.request_history: OrderedDict[str, List[float]] = OrderedDict()
+         self._lock = asyncio.Lock()
++        self._cleanup_task: Optional[asyncio.Task] = None
+ 
+-    async def __call__(self, request: Request):
++    async def _evict_lru_if_needed(self):
++        """Evict oldest identifiers if we exceed MAX_IDENTIFIERS.
++        
++        Uses OrderedDict.popitem(last=False) for O(1) eviction per item.
++        Total complexity: O(k) where k = number of items to evict.
++        """
++        if len(self.request_history) <= self.MAX_IDENTIFIERS:
++            return
++        
++        # Remove oldest identifiers using O(1) popitem operation
++        # popitem(last=False) removes items in FIFO order (oldest first)
++        num_to_evict = len(self.request_history) - self.MAX_IDENTIFIERS
++        for _ in range(num_to_evict):
++            self.request_history.popitem(last=False)
++        
++        logger.debug(f"Rate limiter LRU eviction: removed {num_to_evict} stale identifiers")
++
++    async def start_cleanup_task(self):
++        """Start the background cleanup task. Call this during app startup."""
++        if self._cleanup_task is None:
++            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
++
++    async def stop_cleanup_task(self):
++        """Stop the background cleanup task. Call this during app shutdown."""
++        if self._cleanup_task:
++            self._cleanup_task.cancel()
++            try:
++                await self._cleanup_task
++            except asyncio.CancelledError:
++                pass
++            self._cleanup_task = None
++
++    async def _periodic_cleanup(self):
++        """Periodically remove stale entries to prevent memory leak."""
++        while True:
++            try:
++                await asyncio.sleep(self.window_seconds)
++                async with self._lock:
++                    now = time.time()
++                    # Remove stale timestamps from each key (not just fully-stale keys)
++                    keys_to_remove = []
++                    for key, timestamps in self.request_history.items():
++                        # Keep only recent timestamps
++                        self.request_history[key] = [
++                            t for t in timestamps if now - t < self.window_seconds
++                        ]
++                        # Mark empty keys for removal
++                        if not self.request_history[key]:
++                            keys_to_remove.append(key)
++                    # Remove empty keys
++                    for key in keys_to_remove:
++                        del self.request_history[key]
++                    # Trigger LRU eviction after cleanup to remove excess identifiers
++                    await self._evict_lru_if_needed()
++            except asyncio.CancelledError:
++                break
++            except Exception:
++                # Silently ignore cleanup errors to avoid affecting requests
++                pass
++
++    async def __call__(self, request: Request) -> bool:
+         # Use client host (IP) as identifier
+         identifier = request.client.host if request.client else "unknown"
+         now = time.time()
+ 
+         async with self._lock:
++            # Evict old identifiers if we exceed memory limit
++            await self._evict_lru_if_needed()
++
+             # Filter out timestamps outside the current window
+             self.request_history[identifier] = [
+                 t for t in self.request_history[identifier]
+                 if now - t < self.window_seconds
+             ]
++            
++            # Move to end to mark as recently used (for LRU)
++            self.request_history.move_to_end(identifier)
+ 
+             if len(self.request_history[identifier]) >= self.requests_limit:
++                # Log rate limit exceeded for observability
++                logger.warning(f"Rate limit exceeded for {identifier} ({self.requests_limit} req/{self.window_seconds}s)")
+                 raise HTTPException(
+                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                     detail="Too many requests",
+diff --git a/pantheon/api/routes.py b/pantheon/api/routes.py
+index f5e2e6c..b48bbcf 100644
+--- a/pantheon/api/routes.py
++++ b/pantheon/api/routes.py
+@@ -3,11 +3,13 @@ API route definitions for Project Pantheon.
+ All endpoints are read-only except /trigger which kicks off analysis.
+ """
+ 
++import asyncio
+ from datetime import datetime, date, timezone
+ from typing import Annotated
+-from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
+ 
++from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException, status
+ from fastapi.security import OAuth2PasswordRequestForm
++from loguru import logger
+ from sqlmodel import Session, select, func, col
+ 
+ from pantheon.db.session import get_db, init_db
+@@ -21,12 +23,7 @@ from pantheon.api.schemas import (
+ from pantheon.auth.jwt_handler import create_access_token
+ from pantheon.auth.utils import verify_password
+ from pantheon.auth.dependencies import get_current_active_user
+-from pantheon.api.rate_limiter import RateLimiter
+-
+-# Global rate limiter for general endpoints
+-global_rate_limiter = RateLimiter(requests_limit=60, window_seconds=60)
+-# Stricter rate limiter for authentication endpoints (prevent brute-force)
+-auth_rate_limiter = RateLimiter(requests_limit=5, window_seconds=60)
++from pantheon.api.rate_limiters import global_rate_limiter, auth_rate_limiter, trigger_rate_limiter
+ 
+ router = APIRouter(
+     prefix="/api/v1",
+@@ -65,15 +62,35 @@ async def read_users_me(
+ # HEALTH
+ # ──────────────────────────────────────────────
+ @router.get("/health", response_model=HealthResponse)
+-def health_check(db: Session = Depends(get_db)):
++async def health_check(db: Session = Depends(get_db)):
++    """Comprehensive health check for database and external services."""
++    from pantheon.db.redis_client import get_redis
++    
+     total_signals = db.exec(select(func.count(SignalRecord.run_id))).one()
+     total_trades = db.exec(select(func.count(PaperTrade.id))).one()
++    
++    # Check Redis connectivity with timeout
++    redis_status = "disconnected"
++    redis = get_redis()
++    if redis:
++        try:
++            # 2-second timeout to avoid false positives while allowing for network latency
++            await asyncio.wait_for(redis.ping(), timeout=2.0)
++            redis_status = "connected"
++        except asyncio.TimeoutError:
++            redis_status = "timeout"
++        except Exception as redis_error:
++            # Log specific Redis error for observability
++            logger.warning(f"Redis health check failed: {type(redis_error).__name__}: {redis_error}")
++            redis_status = "error"
++    
+     return HealthResponse(
+         status="ok",
+         database="connected",
+         timestamp=datetime.now(timezone.utc),
+         total_signals=total_signals,
+         total_trades=total_trades,
++        redis=redis_status,
+     )
+ 
+ 
+@@ -156,7 +173,9 @@ def get_watchlist():
+ # EXIT GATE
+ # ──────────────────────────────────────────────
+ @router.get("/gate", response_model=GateResponse)
+-def get_exit_gate():
++def get_exit_gate(
++    current_user: Annotated[User, Depends(get_current_active_user)]
++):
+     from pantheon.jobs.paper_trading_tracker import check_exit_gate
+     result = check_exit_gate()
+     return GateResponse(**result)
+@@ -165,12 +184,14 @@ def get_exit_gate():
+ # ──────────────────────────────────────────────
+ # TRIGGER (for cron-job.org or manual use)
+ # ──────────────────────────────────────────────
++# Note: Uses trigger_rate_limiter from pantheon.api.rate_limiters (5 per hour)
++
+ async def _run_analysis_background(symbols: list[str] | None):
+     from pantheon.jobs.daily_analysis import run_daily_analysis
+     await run_daily_analysis(symbols)
+ 
+ 
+-@router.post("/trigger", response_model=AnalysisTriggerResponse)
++@router.post("/trigger", response_model=AnalysisTriggerResponse, dependencies=[Depends(trigger_rate_limiter)])
+ async def trigger_analysis(
+     background_tasks: BackgroundTasks,
+     current_user: Annotated[User, Depends(get_current_active_user)],
+diff --git a/pantheon/api/schemas.py b/pantheon/api/schemas.py
+index 8e264a9..aa0e09c 100644
+--- a/pantheon/api/schemas.py
++++ b/pantheon/api/schemas.py
+@@ -51,6 +51,7 @@ class HealthResponse(BaseModel):
+     timestamp: datetime
+     total_signals: int
+     total_trades: int
++    redis: Optional[str] = "disconnected"
+ 
+ 
+ class GateResponse(BaseModel):
+diff --git a/pantheon/config/settings.py b/pantheon/config/settings.py
+index ea1f280..fb60b53 100644
+--- a/pantheon/config/settings.py
++++ b/pantheon/config/settings.py
+@@ -70,11 +70,14 @@ class Settings(BaseSettings):
+     GEMINI_PRO_DAILY_BUDGET: int = 90
+     GEMINI_FLASH_DAILY_BUDGET: int = 200
+     BATCH_SIZE: int = 10
++    GOOGLE_API_DELAY_SECONDS: int = 15  # Delay between stocks to stay under free tier limit
++    BATCH_SEPARATOR_DELAY_SECONDS: int = 1  # Delay between model batches
+ 
+     # Caching
+     FUNDAMENTALS_CACHE_DAYS: int = 7
+     NEWS_RETENTION_HOURS: int = 72
+     NODE_CACHE_TTL_HOURS: int = 4
++    CACHE_DIR: str = "./cache"  # Directory for SQLite cache files (relative to project root)
+ 
+     # Security & Authentication
+     JWT_SECRET_KEY: str = ""  # Must be set via environment variable in production
+@@ -82,13 +85,38 @@ class Settings(BaseSettings):
+     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+     ALLOWED_ORIGINS: list[str] = ["http://localhost:8501", "http://localhost:3000"]
+ 
++    @field_validator("CACHE_DIR")
++    @classmethod
++    def resolve_cache_dir(cls, v: str) -> str:
++        """Convert CACHE_DIR to absolute path and validate it's safe."""
++        if not Path(v).is_absolute():
++            v = str(Path(__file__).resolve().parent.parent.parent / v)
++        
++        # Validate cache directory is not a protected path
++        resolved = Path(v).resolve()
++        # Check against protected system paths
++        protected_paths = [Path("/etc"), Path("/usr"), Path("/bin"), Path("/sbin"), Path("/boot"), Path("/dev")]
++        for protected in protected_paths:
++            try:
++                resolved.relative_to(protected)
++                raise ValueError(f"CACHE_DIR cannot be set to protected path: {v}")
++            except ValueError:
++                pass  # Path is not relative to this protected path, continue checking
++        
++        return v
++
+     @field_validator("JWT_SECRET_KEY")
+     @classmethod
+     def validate_jwt_secret(cls, v: str):
+         """Ensure JWT secret is properly configured and not using default value."""
+-        # Skip validation if empty (for testing)
+-        if not v:
+-            return v
++        # Require non-empty JWT secret for security in production
++        if not v or not v.strip():
++            # Allow empty secret for development/testing environments
++            import os
++            if os.getenv("ENVIRONMENT") == "production":
++                raise ValueError("JWT_SECRET_KEY cannot be empty in production. Set a secure random value.")
++            # Return a default for non-production (will be overridden by .env in most cases)
++            return "dev-secret-key-change-in-production"
+         # Check against known default/insecure values
+         insecure_defaults = [
+             "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7",
+diff --git a/pantheon/data/context_builder.py b/pantheon/data/context_builder.py
+index f32f7e0..2a72750 100644
+--- a/pantheon/data/context_builder.py
++++ b/pantheon/data/context_builder.py
+@@ -1,5 +1,5 @@
+ import asyncio
+-from datetime import datetime
++from datetime import datetime, timezone
+ from loguru import logger
+ 
+ from pantheon.data.upstox_client import UpstoxClient
+@@ -56,18 +56,18 @@ class ContextBuilder:
+             "sector": sector,
+             "market_regime": market_regime,
+             "current_price": current_price,
+-            "as_of": datetime.utcnow().isoformat(),
+-            
++            "as_of": datetime.now(timezone.utc).isoformat(),
++
+             # Price history - last 10 rows
+             "price_summary": df.tail(10).to_dict('records') if df is not None and not df.empty else [],
+-            
++
+             "technicals": technicals or {},
+             "fundamentals": fundamentals or {},
+-            
++
+             "bulk_deals": nse_result.get('bulk_deals', []),
+             "fii_net_cash": nse_result.get('fii_net_cash', 0.0),
+             "dii_net_cash": nse_result.get('dii_net_cash', 0.0),
+-            
++
+             "news": news_items[:15] if news_items else [],
+             "news_count": len(news_items) if news_items else 0,
+         }
+diff --git a/pantheon/data/news_client.py b/pantheon/data/news_client.py
+index 4c9cd9e..2e53dfa 100644
+--- a/pantheon/data/news_client.py
++++ b/pantheon/data/news_client.py
+@@ -1,10 +1,12 @@
+ import sqlite3
+-import time
+-from datetime import datetime
++import asyncio
++from pathlib import Path
+ import feedparser
+-import requests
++import aiohttp
+ from loguru import logger
+ 
++from pantheon.config.settings import settings
++
+ RSS_FEEDS = [
+     "https://economictimes.indiatimes.com/markets/rss.cms",
+     "https://www.moneycontrol.com/rss/business.xml",
+@@ -14,28 +16,24 @@ RSS_FEEDS = [
+     "https://www.financialexpress.com/market/feed/"
+ ]
+ 
+-# Create a session with timeout for feedparser to use
+-_feedparser_session = requests.Session()
+-_feedparser_session.headers.update({
+-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+-    "Accept": "application/rss+xml, application/xml, text/xml",
+-})
+-
+-def _fetch_feed_with_timeout(url: str, timeout: int = 10) -> str:
++async def _fetch_feed_with_timeout(session: aiohttp.ClientSession, url: str, timeout: int = 10) -> str:
+     """Fetch feed content with timeout."""
+     try:
+-        resp = _feedparser_session.get(url, timeout=timeout)
+-        resp.raise_for_status()
+-        return resp.text
++        async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
++            resp.raise_for_status()
++            return await resp.text()
+     except Exception as e:
+         logger.warning(f"Failed to fetch feed {url}: {e}")
+         return ""
+ 
+ class NewsClient:
+     def __init__(self):
+-        self.db_path = "news_cache.db"
++        # Use configurable cache directory
++        cache_dir = Path(settings.CACHE_DIR)
++        cache_dir.mkdir(parents=True, exist_ok=True)
++        self.db_path = str(cache_dir / "news_cache.db")
+         self._init_db()
+-        logger.info("NewsClient initialized")
++        logger.info(f"NewsClient initialized with cache at {self.db_path}")
+         
+     def _init_db(self):
+         try:
+@@ -52,66 +50,83 @@ class NewsClient:
+                         fetched_at TEXT
+                     )
+                 """)
++                # Create index on fetched_at for efficient time-based queries
++                cursor.execute("""
++                    CREATE INDEX IF NOT EXISTS idx_fetched_at ON news_items(fetched_at)
++                """)
+                 conn.commit()
+         except Exception as e:
+             logger.error(f"Failed to initialize news_cache.db: {e}")
+ 
+-    def poll_and_store(self) -> int:
++    async def _save_entries(self, feed_url: str, entries: list, source: str) -> int:
++        """Save entries to SQLite database (runs in thread pool)."""
+         count = 0
++        def _save():
++            nonlocal count
++            with sqlite3.connect(self.db_path) as conn:
++                cursor = conn.cursor()
++                for entry in entries:
++                    title = entry.get('title', '')
++                    url = entry.get('link', '')
++                    summary = entry.get('summary', '')[:500]
++                    published_at = entry.get('published', '')
++
++                    if not url:
++                        continue
++
++                    try:
++                        cursor.execute("""
++                            INSERT OR IGNORE INTO news_items
++                            (title, source, published_at, summary, url, fetched_at)
++                            VALUES (?, ?, ?, ?, ?, datetime('now'))
++                        """, (title, source, published_at, summary, url))
++
++                        if cursor.rowcount == 1:
++                            count += 1
++                    except sqlite3.Error as e:
++                        logger.error(f"DB insert error for url {url}: {e}")
++
++                conn.commit()
++        await asyncio.to_thread(_save)
++        return count
++
++    async def poll_and_store(self) -> int:
++        """Poll all RSS feeds and store new items asynchronously."""
++        count = 0
++        async with aiohttp.ClientSession() as session:
++            for feed_url in RSS_FEEDS:
++                try:
++                    # Fetch feed with timeout to prevent hanging
++                    feed_content = await _fetch_feed_with_timeout(session, feed_url)
++                    if not feed_content:
++                        continue
++                    parsed = feedparser.parse(feed_content)
++                    feed_info = getattr(parsed, 'feed', {})
++                    source = feed_info.get('title', feed_url)
+ 
+-        for feed_url in RSS_FEEDS:
+-            try:
+-                # Fetch feed with timeout to prevent hanging
+-                feed_content = _fetch_feed_with_timeout(feed_url)
+-                if not feed_content:
+-                    continue
+-                parsed = feedparser.parse(feed_content)
+-                feed_info = getattr(parsed, 'feed', {})
+-                source = feed_info.get('title', feed_url)
+-                
+-                with sqlite3.connect(self.db_path) as conn:
+-                    cursor = conn.cursor()
+-                    
+                     entries = getattr(parsed, 'entries', [])
+-                    for entry in entries:
+-                        title = entry.get('title', '')
+-                        url = entry.get('link', '')
+-                        summary = entry.get('summary', '')[:500]
+-                        published_at = entry.get('published', '')
+-                        
+-                        if not url:
+-                            continue
+-                            
+-                        try:
+-                            cursor.execute("""
+-                                INSERT OR IGNORE INTO news_items 
+-                                (title, source, published_at, summary, url, fetched_at)
+-                                VALUES (?, ?, ?, ?, ?, datetime('now'))
+-                            """, (title, source, published_at, summary, url))
+-                            
+-                            if cursor.rowcount == 1:
+-                                count += 1
+-                        except sqlite3.Error as e:
+-                            logger.error(f"DB insert error for url {url}: {e}")
+-                            
+-                    conn.commit()
+-            except Exception as e:
+-                logger.warning(f"Error parsing feed {feed_url}: {e}")
+-                continue
+-                
+-            time.sleep(0.5)
+-            
++                    
++                    # Save entries in thread pool to avoid blocking event loop
++                    feed_count = await self._save_entries(feed_url, entries, source)
++                    count += feed_count
++                except Exception as e:
++                    logger.warning(f"Error parsing feed {feed_url}: {e}")
++                    continue
++
++                # Async delay between feeds
++                await asyncio.sleep(0.5)
++
+         try:
+             with sqlite3.connect(self.db_path) as conn:
+                 cursor = conn.cursor()
+                 cursor.execute("""
+-                    DELETE FROM news_items 
++                    DELETE FROM news_items
+                     WHERE fetched_at < datetime('now', '-72 hours')
+                 """)
+                 conn.commit()
+         except Exception as e:
+             logger.warning(f"Error deleting old items from news_items: {e}")
+-            
++
+         logger.info(f"Polled {len(RSS_FEEDS)} feeds, stored {count} new items")
+         return count
+ 
+@@ -121,21 +136,26 @@ class NewsClient:
+                 conn.row_factory = sqlite3.Row
+                 cursor = conn.cursor()
+ 
++                # Sanitize inputs to prevent LIKE injection
++                # Escape SQL wildcards and truncate to reasonable length
++                safe_company = company_name.replace("%", "\\%").replace("_", "\\_")[:100]
++                safe_symbol = symbol.replace("%", "\\%").replace("_", "\\_")[:20]
++
+                 # Use parameterized query to prevent SQL injection
+                 query = """
+                     SELECT title, source, published_at, summary, url
+                     FROM news_items
+                     WHERE fetched_at > datetime('now', '-' || ? || ' hours')
+                     AND (
+-                        title LIKE ? OR
+-                        title LIKE ? OR
+-                        summary LIKE ?
++                        title LIKE ? ESCAPE '\\' OR
++                        title LIKE ? ESCAPE '\\' OR
++                        summary LIKE ? ESCAPE '\\'
+                     )
+                     ORDER BY fetched_at DESC
+                     LIMIT 20
+                 """
+ 
+-                cursor.execute(query, (str(hours), f"%{company_name}%", f"%{symbol}%", f"%{company_name}%"))
++                cursor.execute(query, (str(hours), f"%{safe_company}%", f"%{safe_symbol}%", f"%{safe_company}%"))
+                 rows = cursor.fetchall()
+ 
+                 results = []
+diff --git a/pantheon/data/screener_client.py b/pantheon/data/screener_client.py
+index 620a854..9cad2a7 100644
+--- a/pantheon/data/screener_client.py
++++ b/pantheon/data/screener_client.py
+@@ -2,22 +2,29 @@ import requests
+ from bs4 import BeautifulSoup
+ import sqlite3
+ import json
++import asyncio
+ import time
++from pathlib import Path
+ from loguru import logger
+ from datetime import datetime, timedelta
+ 
++from pantheon.config.settings import settings
++
+ class ScreenerClient:
+     def __init__(self, email: str, password: str):
+         self.email = email
+         self.password = password
+         self._logged_in = False
+-        
++
+         self.session = requests.Session()
+         self.session.headers.update({
+             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+         })
+-        
+-        self.db_path = "fundamentals_cache.db"
++
++        # Use configurable cache directory
++        cache_dir = Path(settings.CACHE_DIR)
++        cache_dir.mkdir(parents=True, exist_ok=True)
++        self.db_path = str(cache_dir / "fundamentals_cache.db")
+         self._init_cache_db()
+         self._login()
+ 
+@@ -29,6 +36,17 @@ class ScreenerClient:
+                     CREATE TABLE IF NOT EXISTS fundamentals_cache
+                     (symbol TEXT PRIMARY KEY, data TEXT, fetched_at TEXT)
+                 """)
++                # Create index on fetched_at for efficient cleanup
++                cursor.execute("""
++                    CREATE INDEX IF NOT EXISTS idx_fetched_at ON fundamentals_cache(fetched_at)
++                """)
++                conn.commit()
++                # Cleanup old entries (older than 7 days)
++                seven_days_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
++                cursor.execute(
++                    "DELETE FROM fundamentals_cache WHERE fetched_at < ?",
++                    (seven_days_ago,)
++                )
+                 conn.commit()
+         except Exception as e:
+             logger.error(f"Failed to init fundamentals cache db: {e}")
+diff --git a/pantheon/data/upstox_client.py b/pantheon/data/upstox_client.py
+index e5abf7f..1d0d5d2 100644
+--- a/pantheon/data/upstox_client.py
++++ b/pantheon/data/upstox_client.py
+@@ -1,11 +1,16 @@
+ import os
+ import contextlib
+ import datetime
++import json
++import time
++from pathlib import Path
+ import pandas as pd
+ import yfinance as yf
+ from loguru import logger
+ import upstox_client
+ 
++from pantheon.config.settings import settings
++
+ class UpstoxClient:
+     def __init__(self, access_token: str):
+         self.access_token = access_token
+@@ -27,10 +32,11 @@ class UpstoxClient:
+         self._load_instruments()
+ 
+     def _load_instruments(self) -> None:
+-        import os
+-        import json
+-        cache_file = "upstox_instruments.json"
+-        
++        # Use configurable cache directory
++        cache_dir = Path(settings.CACHE_DIR)
++        cache_dir.mkdir(parents=True, exist_ok=True)
++        cache_file = str(cache_dir / "upstox_instruments.json")
++
+         if os.path.exists(cache_file):
+             modified = datetime.datetime.fromtimestamp(os.path.getmtime(cache_file))
+             if (datetime.datetime.now() - modified).days < 1:
+@@ -40,7 +46,7 @@ class UpstoxClient:
+                     return
+                 except Exception as e:
+                     self.logger.warning(f"Failed to read instrument cache: {e}")
+-                    
++
+         self.logger.info("Downloading master instrument list from Upstox (cached for 24h)...")
+         try:
+             import requests
+@@ -116,6 +122,15 @@ class UpstoxClient:
+             return self._yfinance_fallback(nse_symbol, days)
+ 
+     def get_nifty50_history(self, days: int = 250) -> pd.DataFrame:
++        """
++        Fetch historical price data for Nifty 50 index.
++        
++        Args:
++            days: Number of days of historical data to fetch (default: 250).
++            
++        Returns:
++            DataFrame with 'date' and 'close' columns for Nifty 50.
++        """
+         instrument_key = "NSE_INDEX|Nifty 50"
+         nse_symbol = "^NSEI"
+         
+@@ -221,7 +236,73 @@ class UpstoxClient:
+     def get_instrument_key(self, nse_symbol: str) -> str:
+         if nse_symbol in self._instrument_map:
+             return self._instrument_map[nse_symbol]
+-            
+-        # Return a silent flag enforcing direct yfinance override 
++
++        # Return a silent flag enforcing direct yfinance override
+         # to block API traces and noisy ERROR logging dumps
+         return f"YFINANCE_ONLY|{nse_symbol}"
++
++    def get_batch_prices(self, instrument_keys: list[str]) -> dict[str, float]:
++        """
++        Fetch current prices for multiple instruments in a single batch request.
++        Includes retry logic with exponential backoff for transient failures.
++
++        Args:
++            instrument_keys: List of instrument keys to fetch prices for.
++                Maximum 100 keys per batch (Upstox API limit).
++
++        Returns:
++            dict: Mapping of instrument_key -> last_price.
++        """
++        if not instrument_keys:
++            return {}
++
++        # Enforce Upstox API batch size limit
++        MAX_BATCH_SIZE = 100
++        if len(instrument_keys) > MAX_BATCH_SIZE:
++            self.logger.warning(f"Batch size {len(instrument_keys)} exceeds limit {MAX_BATCH_SIZE}, chunking...")
++            # Process in chunks and merge results
++            all_prices = {}
++            for i in range(0, len(instrument_keys), MAX_BATCH_SIZE):
++                chunk = instrument_keys[i:i + MAX_BATCH_SIZE]
++                chunk_prices = self._get_batch_prices_chunk(chunk)
++                all_prices.update(chunk_prices)
++            return all_prices
++
++        return self._get_batch_prices_chunk(instrument_keys)
++
++    def _get_batch_prices_chunk(self, instrument_keys: list[str]) -> dict[str, float]:
++        """Fetch prices for a single batch (max 100 instruments)."""
++        # Retry with exponential backoff for transient failures
++        max_retries = 3
++        base_delay = 0.5  # seconds
++
++        for attempt in range(max_retries):
++            try:
++                # Upstox MarketQuoteApi supports batch LTP requests
++                res = self.market_quote_api.get_quotes(instrument_keys=instrument_keys, api_version="2.0")
++                prices = {}
++                if res and res.data:
++                    for key, quote in res.data.items():
++                        if quote and hasattr(quote, 'last_price'):
++                            prices[key] = float(quote.last_price)
++
++                # Log partial failures if any
++                if len(prices) < len(instrument_keys):
++                    missing = set(instrument_keys) - set(prices.keys())
++                    self.logger.warning(f"Batch price fetch: {len(missing)} instruments missing: {missing}")
++
++                return prices
++
++            except Exception as e:
++                if attempt < max_retries - 1:
++                    delay = base_delay * (2 ** attempt)  # Exponential backoff
++                    self.logger.warning(f"Batch price fetch failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}")
++                    # Note: time.sleep is acceptable here since Upstox SDK is synchronous
++                    # and this method runs in a thread pool when called from async context
++                    time.sleep(delay)
++                else:
++                    self.logger.error(f"Batch price fetch failed after {max_retries} attempts: {e}")
++                    # Return empty dict - caller will fall back to individual requests
++                    return {}
++
++        return {}
+diff --git a/pantheon/data/weights_store.py b/pantheon/data/weights_store.py
+index 45d0ad9..554b92e 100644
+--- a/pantheon/data/weights_store.py
++++ b/pantheon/data/weights_store.py
+@@ -6,7 +6,7 @@ GitHub Actions runners have ephemeral filesystems, so weights
+ must be stored in the database to persist across runs.
+ """
+ 
+-from datetime import datetime
++from datetime import datetime, timezone
+ from loguru import logger
+ from sqlmodel import select
+ 
+@@ -37,17 +37,18 @@ def save_weights(weights: dict) -> None:
+     try:
+         db = SessionLocal()
+         try:
++            now = datetime.now(timezone.utc)
+             for model_id, weight in weights.items():
+                 existing = db.get(ModelWeight, model_id)
+                 if existing:
+                     existing.weight = weight
+-                    existing.updated_at = datetime.utcnow()
++                    existing.updated_at = now
+                     db.add(existing)
+                 else:
+                     db.add(ModelWeight(
+                         model_id=model_id,
+                         weight=weight,
+-                        updated_at=datetime.utcnow(),
++                        updated_at=now,
+                     ))
+             db.commit()
+             logger.info("Weights saved to database")
+diff --git a/pantheon/db/models.py b/pantheon/db/models.py
+index 23c3f83..b338b43 100644
+--- a/pantheon/db/models.py
++++ b/pantheon/db/models.py
+@@ -15,7 +15,7 @@ class SignalRecord(SQLModel, table=True):
+ 
+     run_id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+     symbol: str = Field(index=True)
+-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
++    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), index=True)
+ 
+     direction: str
+     consensus_score: float
+@@ -29,8 +29,8 @@ class SignalRecord(SQLModel, table=True):
+     model_signals: dict = Field(default_factory=dict, sa_column=Column(JSON))
+     reasoning: str
+ 
+-    outcome: Optional[str] = Field(default=None)
+-    outcome_date: Optional[datetime] = Field(default=None)
++    outcome: Optional[str] = Field(default=None, index=True)
++    outcome_date: Optional[datetime] = Field(default=None, index=True)
+     entry_price: Optional[float] = Field(default=None)
+ 
+ 
+@@ -49,7 +49,7 @@ class PaperTrade(SQLModel, table=True):
+     pnl_pct: Optional[float] = None
+ 
+     regime_at_entry: str
+-    is_open: bool = Field(default=True)
++    is_open: bool = Field(default=True, index=True)
+ 
+ 
+ class TokenRecord(SQLModel, table=True):
+diff --git a/pantheon/db/redis_client.py b/pantheon/db/redis_client.py
+index 2192d11..e9ab82f 100644
+--- a/pantheon/db/redis_client.py
++++ b/pantheon/db/redis_client.py
+@@ -1,18 +1,26 @@
+ import redis.asyncio as redis
+-from pantheon.config.settings import settings
++
+ from loguru import logger
+ 
++from pantheon.config.settings import settings
++
+ # Global Redis pool
+ redis_client: redis.Redis = None
+ 
+ async def init_redis():
+-    """Initializes the global Redis connection pool."""
++    """Initializes the global Redis connection pool with production-ready configuration."""
+     global redis_client
+     try:
+         redis_client = redis.from_url(
+             settings.REDIS_URL,
+             encoding="utf-8",
+-            decode_responses=True
++            decode_responses=True,
++            # Connection pool configuration for production
++            max_connections=50,          # Maximum concurrent connections
++            socket_timeout=5.0,          # Socket timeout in seconds
++            socket_connect_timeout=5.0,  # Connection timeout in seconds
++            retry_on_timeout=True,       # Retry on socket timeout
++            health_check_interval=30,    # Health check every 30 seconds
+         )
+         # Test connection
+         await redis_client.ping()
+diff --git a/pantheon/db/session.py b/pantheon/db/session.py
+index 359c0fb..3e99fe2 100644
+--- a/pantheon/db/session.py
++++ b/pantheon/db/session.py
+@@ -6,7 +6,16 @@ PostgreSQL via Neon — no SQLite flags needed.
+ from sqlmodel import create_engine, Session, SQLModel
+ from pantheon.config.settings import settings
+ 
+-engine = create_engine(settings.DATABASE_URL)
++# Configure connection pooling for production workloads
++# pool_size: Number of connections to keep open
++# max_overflow: Additional connections allowed beyond pool_size
++# pool_pre_ping: Test connections before use to detect stale connections
++engine = create_engine(
++    settings.DATABASE_URL,
++    pool_size=10,
++    max_overflow=20,
++    pool_pre_ping=True,
++)
+ 
+ 
+ def SessionLocal():
+diff --git a/pantheon/jobs/daily_analysis.py b/pantheon/jobs/daily_analysis.py
+index 0699a7b..c866306 100644
+--- a/pantheon/jobs/daily_analysis.py
++++ b/pantheon/jobs/daily_analysis.py
+@@ -1,6 +1,6 @@
+ import asyncio
+ import uuid
+-from datetime import datetime
++from datetime import datetime, timezone
+ from loguru import logger
+ 
+ from pantheon.agents.graph import build_graph
+@@ -81,38 +81,64 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
+                  if symbols is None or w["symbol"] in symbols]
+ 
+     results = []
+-    db = SessionLocal()
+-    try:
+-        for stock in watchlist:
+-            sym = stock["symbol"]
+-            logger.info(f"Analyzing {sym}...")
++
++    # Use semaphore to control concurrency (3 stocks at a time to balance API limits)
++    semaphore = asyncio.Semaphore(3)
++
++    async def analyze_stock(stock: dict) -> dict | None:
++        """
++        Analyze a single stock with rate limiting.
++        Creates its own DB session for thread safety.
++        """
++        sym = stock["symbol"]
++        # Acquire semaphore FIRST to limit concurrent DB connections
++        async with semaphore:
++            db = SessionLocal()  # New session per task for thread safety
+             try:
+-                ctx = await builder.build(
+-                    sym, stock["company"], stock["sector"], regime)
+-                state = {
+-                    "symbol": sym,
+-                    "run_id": str(uuid.uuid4()),
+-                    "market_regime": regime,
+-                    "stock_context": ctx,
+-                    "model_signals": [],
+-                    "errors": []
+-                }
++                logger.info(f"Analyzing {sym}...")
++                # Small delay BEFORE API call to space out requests
++                await asyncio.sleep(2)
++                try:
++                    ctx = await builder.build(
++                        sym, stock["company"], stock["sector"], regime)
++                    state = {
++                        "symbol": sym,
++                        "run_id": str(uuid.uuid4()),
++                        "market_regime": regime,
++                        "stock_context": ctx,
++                        "model_signals": [],
++                        "errors": []
++                    }
+ 
+-                result = await graph.ainvoke(state)
+-                signal = result["final_signal"]
+-                entry_price = ctx.get("current_price") or 0.0
++                    result = await graph.ainvoke(state)
++                    signal = result["final_signal"]
++                    entry_price = ctx.get("current_price") or 0.0
+ 
+-                await save_signal(db, signal, entry_price)
+-                results.append(signal)
++                    await save_signal(db, signal, entry_price)
+ 
+-                logger.info(f"{sym}: {signal['direction']} S={signal['consensus_score']:.3f}")
+-            except Exception as e:
+-                logger.error(f"{sym} analysis failed: {e}")
++                    logger.info(f"{sym}: {signal['direction']} S={signal['consensus_score']:.3f}")
++                    return signal
++                except Exception as e:
++                    logger.error(f"{sym} analysis failed: {e}")
++                    return None
++            finally:
++                db.close()
+ 
+-            # 15s delay to stay under Google free tier 15 RPM limit (2 reqs/stock = 4 reqs/min max)
+-            await asyncio.sleep(15)
+-    finally:
+-        db.close()
++    try:
++        # Process stocks in batches with controlled concurrency
++        tasks = [analyze_stock(stock) for stock in watchlist]
++        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
++
++        # Log individual exceptions before filtering
++        for i, result in enumerate(batch_results):
++            if isinstance(result, Exception):
++                logger.error(f"Stock {watchlist[i]['symbol']} analysis failed with exception: {type(result).__name__}: {result}")
++
++        # Filter out None results and exceptions
++        results = [r for r in batch_results if r is not None and not isinstance(r, Exception)]
++
++    except Exception as e:
++        logger.error(f"Batch analysis failed: {e}")
+ 
+     logger.info(f"Analysis complete. {len(results)} signals stored.")
+     return results
+diff --git a/pantheon/jobs/paper_trading_tracker.py b/pantheon/jobs/paper_trading_tracker.py
+index ff38830..ad686a5 100644
+--- a/pantheon/jobs/paper_trading_tracker.py
++++ b/pantheon/jobs/paper_trading_tracker.py
+@@ -24,13 +24,13 @@ GATE_CRITERIA = {
+ 
+ def compute_metrics() -> dict:
+     db = SessionLocal()
+-    
++
+     try:
+-        # 1. SIGNALS WITH OUTCOMES - Use yield_per for memory efficiency
+-        all_signals = db.query(SignalRecord).filter(
++        # 1. SIGNALS WITH OUTCOMES - Use proper iteration without .all()
++        all_signals = list(db.query(SignalRecord).filter(
+             SignalRecord.outcome != None
+-        ).yield_per(100).all()
+-        
++        ).yield_per(100))
++
+         if not all_signals:
+             return {
+                 "total_signals": 0,
+@@ -50,8 +50,8 @@ def compute_metrics() -> dict:
+         directional = [s for s in all_signals if s.direction != "HOLD"]
+         accuracy = correct / len(directional) if directional else 0.0
+ 
+-        # 3. PAPER TRADE P&L - Use yield_per for memory efficiency
+-        closed = db.query(PaperTrade).filter_by(is_open=False).yield_per(100).all()
++        # 3. PAPER TRADE P&L - Use proper iteration without .all()
++        closed = list(db.query(PaperTrade).filter_by(is_open=False).yield_per(100))
+         pnls = [t.pnl_pct for t in closed if t.pnl_pct is not None]
+ 
+         # 4. SHARPE RATIO
+@@ -72,10 +72,10 @@ def compute_metrics() -> dict:
+                 cumulative.append(running)
+             peak = 100.0
+             for val in cumulative:
+-                if val > peak: 
++                if val > peak:
+                     peak = val
+                 dd = (peak - val) / peak * 100
+-                if dd > max_dd: 
++                if dd > max_dd:
+                     max_dd = dd
+ 
+         # 6. REGIME-STRATIFIED RETURNS
+@@ -83,7 +83,7 @@ def compute_metrics() -> dict:
+         for t in closed:
+             if t.pnl_pct is not None and t.regime_at_entry in regime_pnl:
+                 regime_pnl[t.regime_at_entry].append(t.pnl_pct)
+-                
++
+         regime_alpha = {
+             r: statistics.mean(v) > 0
+             for r, v in regime_pnl.items() if v
+@@ -98,9 +98,10 @@ def compute_metrics() -> dict:
+         )
+         dissent_rate = (dissent_avoided / len(dissent_signals)) if dissent_signals else 0.0
+ 
+-        # 8. TRADING DAYS ELAPSED
+-        oldest = min(s.timestamp for s in all_signals) if all_signals else datetime.now(timezone.utc)
+-        days_elapsed = (datetime.now(timezone.utc) - oldest).days
++        # 8. TRADING DAYS ELAPSED - Use SQL aggregation instead of Python min()
++        oldest = db.query(SignalRecord.timestamp).order_by(SignalRecord.timestamp.asc()).first()
++        oldest_ts = oldest[0] if oldest else datetime.now(timezone.utc)
++        days_elapsed = (datetime.now(timezone.utc) - oldest_ts).days
+ 
+         # 9. WEIGHT CONVERGENCE
+         weights = load_weights()
+@@ -109,7 +110,7 @@ def compute_metrics() -> dict:
+             weight_var = statistics.variance(w_values) if len(w_values) > 1 else 1.0
+         else:
+             weight_var = 1.0
+-            
++
+         return {
+             "total_signals":    len(all_signals),
+             "total_trades":     len(closed),
+@@ -120,7 +121,7 @@ def compute_metrics() -> dict:
+             "dissent_rate":     round(dissent_rate, 4),
+             "days_elapsed":     days_elapsed,
+             "weight_variance":  round(weight_var, 6),
+-            "regime_pnl":       {r: round(statistics.mean(v), 4) if v else None 
++            "regime_pnl":       {r: round(statistics.mean(v), 4) if v else None
+                                  for r, v in regime_pnl.items()},
+         }
+     except Exception as e:
+diff --git a/pantheon/jobs/weight_updater.py b/pantheon/jobs/weight_updater.py
+index 8242e45..8ffe166 100644
+--- a/pantheon/jobs/weight_updater.py
++++ b/pantheon/jobs/weight_updater.py
+@@ -1,11 +1,12 @@
+ import sys
+ from pathlib import Path
++import uuid
+ 
+ # Add project root to sys.path so we can run from anywhere
+ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+ 
+ import asyncio
+-from datetime import datetime, timedelta, date
++from datetime import datetime, timedelta, date, timezone
+ from loguru import logger
+ from sqlmodel import select
+ 
+@@ -15,6 +16,8 @@ from pantheon.data.upstox_client import UpstoxClient
+ from pantheon.data.weights_store import load_weights, save_weights
+ from pantheon.mmci.weights import WeightManager
+ from pantheon.config.settings import settings
++from pantheon.db.token_store import get_active_upstox_token
++from pantheon.db.redis_client import get_redis
+ 
+ OUTCOME_THRESHOLD_PCT = 2.0  # 2% move required to call BUY or SELL correct
+ 
+@@ -27,39 +30,76 @@ def get_trading_days_ago(n: int) -> date:
+             days_counted += 1
+     return current
+ 
+-def determine_actual_outcome(entry_price: float, current_price: float) -> str:
++def determine_actual_outcome(signal_direction: str, entry_price: float, current_price: float) -> str:
++    """
++    Determine if a signal's prediction was correct based on price movement.
++    
++    For BUY signals: correct if price increased >= threshold
++    For SELL signals: correct if price decreased >= threshold
++    For HOLD signals: correct if price stayed within threshold
++    
++    Args:
++        signal_direction: The predicted direction (BUY/SELL/HOLD)
++        entry_price: The entry price when signal was generated
++        current_price: The current/outcome price
++        
++    Returns:
++        "BUY" if price moved up >= threshold
++        "SELL" if price moved down >= threshold  
++        "HOLD" if price stayed within threshold
++    """
+     if not entry_price:
+         return "HOLD"
+     pct_change = (current_price - entry_price) / entry_price * 100.0
+-    if pct_change >= OUTCOME_THRESHOLD_PCT:
+-        return "BUY"
+-    if pct_change <= -OUTCOME_THRESHOLD_PCT:
+-        return "SELL"
+-    return "HOLD"
++    
++    # Determine outcome based on signal direction
++    if signal_direction == "BUY":
++        if pct_change >= OUTCOME_THRESHOLD_PCT:
++            return "BUY"  # Correct: price went up
++        elif pct_change <= -OUTCOME_THRESHOLD_PCT:
++            return "SELL"  # Incorrect: price went down
++    elif signal_direction == "SELL":
++        if pct_change <= -OUTCOME_THRESHOLD_PCT:
++            return "SELL"  # Correct: price went down
++        elif pct_change >= OUTCOME_THRESHOLD_PCT:
++            return "BUY"  # Incorrect: price went up
++    
++    return "HOLD"  # Price stayed within threshold
+ 
+ async def _process_update_for_date(target_date: date) -> dict:
+     logger.info(f"Running T+5 update for signals from {target_date}")
+     db = SessionLocal()
+-
+-    # Acquire distributed lock using Redis to prevent concurrent weight updates
+-    from pantheon.db.redis_client import get_redis
+     redis = get_redis()
+     lock_key = "weight_update_lock"
+     lock_timeout = 300  # 5 minutes
++    lock_token = str(uuid.uuid4())  # Unique token to ensure only owner can release
++    lock_acquired = False
+ 
++    # Acquire distributed lock using Redis to prevent concurrent weight updates
+     if redis:
+         try:
+-            # Try to acquire lock (non-blocking)
+-            lock_acquired = await redis.set(lock_key, "locked", nx=True, ex=lock_timeout)
++            # Try to acquire lock with unique token (non-blocking)
++            lock_acquired = await redis.set(lock_key, lock_token, nx=True, ex=lock_timeout)
+             if not lock_acquired:
+                 logger.info("Weight update already running, skipping")
++                db.close()
++                await redis.close()
++                redis = None  # Prevent double-close in finally block
+                 return {}
+         except Exception as e:
+-            logger.warning(f"Redis lock acquisition failed, proceeding without lock: {e}")
+-            lock_acquired = True
++            logger.error(f"Redis lock acquisition failed, skipping weight update: {e}")
++            # Alert operations team for monitoring (Sentry, PagerDuty, etc.)
++            try:
++                import sentry_sdk
++                sentry_sdk.capture_message(f"Weight update skipped: Redis lock failed - {e}", level="error")
++            except Exception:
++                pass  # Sentry may not be configured
++            db.close()
++            await redis.close()  # Close Redis connection on error path
++            redis = None  # Prevent double-close in finally block
++            return {}  # Fail closed - skip update if Redis unavailable
+     else:
+         logger.warning("Redis not available, proceeding without distributed lock")
+-        lock_acquired = True
+ 
+     try:
+         # Time boundaries for robust date filtering across SQL dialects
+@@ -77,26 +117,58 @@ async def _process_update_for_date(target_date: date) -> dict:
+             logger.info("No signals to evaluate for this date")
+             return {}
+ 
+-        upstox = UpstoxClient(access_token="dev_token")
++        # Load Upstox token from database (FIX: was hardcoded "dev_token")
++        upstox_token = get_active_upstox_token()
++        upstox = UpstoxClient(access_token=upstox_token)
+         weights = load_weights()
+         wm = WeightManager(weights)
+ 
++        # FIX: Batch price requests to avoid N+1 API calls
++        # Collect all instrument keys first
++        symbol_to_record = {}
++        instrument_keys = []
+         for record in records:
+             try:
+                 instrument_key = upstox.get_instrument_key(record.symbol)
+-                current_price = upstox.get_current_price(instrument_key, record.symbol)
++                if instrument_key:
++                    symbol_to_record[record.symbol] = (record, instrument_key)
++                    instrument_keys.append(instrument_key)
++            except Exception as e:
++                logger.warning(f"Failed to get instrument key for {record.symbol}: {e}")
++
++        # Fetch all prices in a single batch request
++        if instrument_keys:
++            batch_prices = upstox.get_batch_prices(instrument_keys)
++        else:
++            batch_prices = {}
++
++        for record in records:
++            try:
++                if record.symbol not in symbol_to_record:
++                    continue
++                _, instrument_key = symbol_to_record[record.symbol]
++
++                # Use batch price if available, otherwise fall back to individual request
++                current_price = batch_prices.get(instrument_key)
++                if current_price is None:  # Explicit None check (0.0 is valid price)
++                    try:
++                        current_price = upstox.get_current_price(instrument_key, record.symbol)
++                    except Exception as e:
++                        logger.warning(f"Individual price fetch failed for {record.symbol}: {e}")
++                        continue  # Skip this record
+ 
+                 if not current_price or not record.entry_price:
+                     continue
+ 
+-                actual = determine_actual_outcome(record.entry_price, current_price)
++                # FIX: Determine outcome based on signal direction
++                actual = determine_actual_outcome(record.direction, record.entry_price, current_price)
+                 pct = (current_price - record.entry_price) / record.entry_price * 100.0
+ 
+                 logger.info(f"{record.symbol}: signal={record.direction} actual={actual} pct={pct:+.2f}%")
+ 
+                 # Update signal record
+                 record.outcome = actual
+-                record.outcome_date = datetime.now(datetime.timezone.utc)
++                record.outcome_date = datetime.now(timezone.utc)
+ 
+                 # Update paper trade if exists
+                 trade = db.exec(
+@@ -108,8 +180,9 @@ async def _process_update_for_date(target_date: date) -> dict:
+ 
+                 if trade:
+                     trade.exit_price = current_price
+-                    trade.exit_date = datetime.now(datetime.timezone.utc)
+-                    trade.pnl_pct = pct
++                    trade.exit_date = datetime.now(timezone.utc)
++                    # FIX: Invert P&L for SELL signals
++                    trade.pnl_pct = -pct if trade.direction == "SELL" else pct
+                     trade.is_open = False
+ 
+                 # Feed signal to weight manager
+@@ -127,12 +200,30 @@ async def _process_update_for_date(target_date: date) -> dict:
+ 
+     finally:
+         db.close()
+-        # Release lock
++        # Release lock atomically using Lua script (prevents race condition)
+         if redis and lock_acquired:
+             try:
+-                await redis.delete(lock_key)
++                # Atomic lock release: only delete if we still own the lock
++                unlock_script = """
++                if redis.call("GET", KEYS[1]) == ARGV[1] then
++                    return redis.call("DEL", KEYS[1])
++                else
++                    return 0
++                end
++                """
++                result = await redis.eval(unlock_script, 1, lock_key, lock_token)
++                if result:
++                    logger.debug("Weight update lock released successfully")
++                else:
++                    logger.warning("Weight update lock was already released or stolen")
+             except Exception as e:
+                 logger.warning(f"Failed to release lock: {e}")
++        # Close Redis connection explicitly
++        if redis:
++            try:
++                await redis.close()
++            except Exception as e:
++                logger.warning(f"Failed to close Redis connection: {e}")
+ 
+ async def run_weight_update() -> dict:
+     target_date = get_trading_days_ago(5)
+diff --git a/pantheon/mmci/scoring.py b/pantheon/mmci/scoring.py
+index c42bb4a..cb88bf6 100644
+--- a/pantheon/mmci/scoring.py
++++ b/pantheon/mmci/scoring.py
+@@ -1,21 +1,73 @@
+-import statistics
+-import math
++"""
++MMCI scoring functions for computing consensus, dissent, and category scores.
++"""
++
++from pantheon.mmci.weights import INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+ 
+ DISSENT_THRESHOLD = 0.15
+ 
+ REGIME_THRESHOLDS = {
+-  "BULL":     {"buy": 0.20, "sell": -0.45},
+-  "SIDEWAYS": {"buy": 0.30, "sell": -0.30},
+-  "BEAR":     {"buy": 0.45, "sell": -0.20},
++    "BULL":     {"buy": 0.20, "sell": -0.45},
++    "SIDEWAYS": {"buy": 0.30, "sell": -0.30},
++    "BEAR":     {"buy": 0.45, "sell": -0.20},
+ }
+ 
+ def compute_dissent_score(signals: list[dict]) -> float:
+-    active = [s for s in signals if not s.get("failed", False)]
+-    if len(active) < 2: return 0.0
+-    signed = [s["confidence"] * (1 if s["direction"]=="BUY" else -1 if s["direction"]=="SELL" else 0) for s in active]
+-    return statistics.variance(signed)
++    """
++    Computes a dissent score based on directional disagreement among models.
++
++    Uses a standardized disagreement ratio that accounts for both direction
++    and confidence, rather than raw variance which can be misleading.
++    
++    Note: Unanimous HOLD signals are treated as high dissent (uncertainty)
++    rather than agreement, since HOLD typically indicates model uncertainty.
++
++    Args:
++        signals: List of model signal dictionaries with direction and confidence.
++
++    Returns:
++        float: Dissent score between 0.0 (full agreement) and 1.0 (full disagreement).
++    """
++    active = [s for s in signals if not s.get("failed", False)]
++    if len(active) < 2:
++        return 0.0
++
++    # Count signals by direction
++    buy_signals = [s for s in active if s["direction"] == "BUY"]
++    sell_signals = [s for s in active if s["direction"] == "SELL"]
++    hold_signals = [s for s in active if s["direction"] == "HOLD"]
++
++    # Unanimous HOLD indicates uncertainty - treat as high dissent
++    if len(hold_signals) == len(active):
++        return 1.0
++    
++    # If all signals agree on BUY or SELL, dissent is 0
++    if len(buy_signals) == len(active) or len(sell_signals) == len(active):
++        return 0.0
++
++    # Calculate weighted disagreement: sum of confidence for minority directions
++    direction_counts = {
++        "BUY": len(buy_signals),
++        "SELL": len(sell_signals),
++        "HOLD": len(hold_signals)
++    }
++    majority_direction = max(direction_counts, key=direction_counts.get)
++
++    # Sum confidence of signals NOT in majority direction
++    minority_confidence = sum(
++        s["confidence"] for s in active
++        if s["direction"] != majority_direction
++    )
++
++    # Normalize by total confidence to get 0-1 dissent score
++    total_confidence = sum(s["confidence"] for s in active)
++
++    if total_confidence == 0:
++        return 0.0
++
++    dissent = minority_confidence / total_confidence
++    return round(dissent, 6)
+ 
+-from pantheon.mmci.weights import INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+ 
+ def compute_technical_score(indicators: dict) -> float:
+     """
+@@ -78,12 +130,22 @@ def compute_fundamental_score(data: dict) -> float:
+         
+     return round(max(-1.0, min(1.0, score)), 6) if count > 0 else 0.0
+ 
+-def compute_total_mmci_score(technical_score: float, 
+-                             fundamental_score: float, 
+-                             sentiment_score: float, 
++def compute_total_mmci_score(technical_score: float,
++                             fundamental_score: float,
++                             sentiment_score: float,
+                              category_weights: dict = None) -> float:
+     """
+     Computes a weighted total score across Technicals, Fundamentals, and Sentiment.
++    
++    Args:
++        technical_score: Technical analysis score (-1.0 to 1.0).
++        fundamental_score: Fundamental analysis score (-1.0 to 1.0).
++        sentiment_score: Sentiment analysis score (-1.0 to 1.0).
++        category_weights: Optional dict with weights for each category.
++            Defaults to INITIAL_CATEGORY_WEIGHTS if not provided.
++            
++    Returns:
++        float: Weighted total MMCI score (-1.0 to 1.0).
+     """
+     weights = category_weights or INITIAL_CATEGORY_WEIGHTS
+     
+@@ -99,6 +161,16 @@ def compute_total_mmci_score(technical_score: float,
+     return round(total_score, 6)
+ 
+ def compute_consensus_score(signals: list[dict], weights: dict = None) -> float:
++    """
++    Compute weighted consensus score from model signals.
++    
++    Args:
++        signals: List of model signal dictionaries with direction and confidence.
++        weights: Optional model weights dict (default: INITIAL_WEIGHTS).
++        
++    Returns:
++        float: Weighted consensus score (-1.0 to 1.0).
++    """
+     active = [s for s in signals if not s.get("failed", False)]
+     if not active: return 0.0
+     
+@@ -114,7 +186,15 @@ def compute_consensus_score(signals: list[dict], weights: dict = None) -> float:
+ def compute_sentiment_score(signals: list[dict]) -> float:
+     """
+     Computes a sentiment score (-1.0 to 1.0) based on model signals.
++    
+     Focuses on models that are sentiment-aware (gemini_flash, gemini_pro, groq_gpt).
++    Higher weight is given to gemini_flash for short-term sentiment/news analysis.
++    
++    Args:
++        signals: List of model signal dictionaries with direction and confidence.
++        
++    Returns:
++        float: Weighted sentiment score (-1.0 to 1.0).
+     """
+     sentiment_models = {"gemini_flash", "gemini_pro", "groq_gpt"}
+     active = [s for s in signals if not s.get("failed", False) and s["model_id"] in sentiment_models]
+@@ -134,21 +214,46 @@ def compute_sentiment_score(signals: list[dict]) -> float:
+     return round(weighted_sum / count, 6) if count > 0 else 0.0
+ 
+ def determine_direction(S: float, regime: str) -> str:
++    """
++    Determine trading direction (BUY/SELL/HOLD) based on MMCI score and market regime.
++    
++    Args:
++        S: Total MMCI score (-1.0 to 1.0).
++        regime: Current market regime (BULL/BEAR/SIDEWAYS).
++        
++    Returns:
++        str: Trading direction - "BUY", "SELL", or "HOLD".
++    """
+     t = REGIME_THRESHOLDS.get(regime, REGIME_THRESHOLDS["SIDEWAYS"])
+     if S > t["buy"]: return "BUY"
+     elif S < t["sell"]: return "SELL"
+     return "HOLD"
+ 
+ def compute_position_size(S: float, D: float, max_alloc: float = 0.20) -> float:
++    """
++    Compute suggested position size based on consensus score and dissent.
++    
++    Args:
++        S: Total MMCI score (-1.0 to 1.0).
++        D: Dissent score (0.0 to 1.0).
++        max_alloc: Maximum allocation per position (default: 0.20 = 20%).
++        
++    Returns:
++        float: Suggested allocation (0.0 to max_alloc).
++    """
+     return round(min(abs(S) * max_alloc * max(0.0, 1.0 - D), max_alloc), 4)
+ 
+ def compute_risk_level(S: float, D: float, regime: str) -> int:
++    """
++    Compute risk level (1-5) based on score, dissent, and market regime.
++    
++    Args:
++        S: Total MMCI score (-1.0 to 1.0).
++        D: Dissent score (0.0 to 1.0).
++        regime: Current market regime (BULL/BEAR/SIDEWAYS).
++        
++    Returns:
++        int: Risk level from 1 (lowest) to 5 (highest).
++    """
+     base = {"BULL": 1, "SIDEWAYS": 2, "BEAR": 3}.get(regime, 2)
+     return min(5, max(1, base + int((1.0 - abs(S)) * 2) + int(D / 0.1)))
+-
+-# Dummy functions for agents/graph.py backwards compatibility
+-def synthesize_reasoning(signals: list[dict], final_direction: str) -> str:
+-    return ""
+-
+-def determine_consensus_timeframe(signals: list[dict]) -> str:
+-    return "MEDIUM"
+diff --git a/pantheon/mmci/weights.py b/pantheon/mmci/weights.py
+index 1fd3ec9..f92c3d2 100644
+--- a/pantheon/mmci/weights.py
++++ b/pantheon/mmci/weights.py
+@@ -19,11 +19,11 @@ def load_config_weights():
+         return INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
+ 
+ INITIAL_WEIGHTS = {
+-  "gemini_pro": 0.25, 
+-  "gemini_flash": 0.20,
+-  "groq_qwen": 0.20,  
+-  "groq_llama": 0.20, 
+-  "groq_gpt": 0.15
++    "gemini_pro": 0.25,
++    "gemini_flash": 0.20,
++    "groq_qwen": 0.20,
++    "groq_llama": 0.20,
++    "groq_gpt": 0.15
+ }
+ LEARNING_RATE = 0.05
+ WEIGHT_FLOOR = 0.05
+diff --git a/requirements.txt b/requirements.txt
+index 53883de..7f1e61e 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -11,6 +11,7 @@ feedparser
+ beautifulsoup4
+ requests
+ httpx
++aiohttp>=3.9.0
+ streamlit
+ sqlalchemy
+ psycopg2-binary

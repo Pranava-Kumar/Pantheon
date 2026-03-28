@@ -19,17 +19,28 @@ def load_config_weights():
         return INITIAL_WEIGHTS, INITIAL_CATEGORY_WEIGHTS
 
 INITIAL_WEIGHTS = {
-  "gemini_pro": 0.25, 
-  "gemini_flash": 0.20,
-  "groq_qwen": 0.20,  
-  "groq_llama": 0.20, 
-  "groq_gpt": 0.15
+    "gemini_pro": 0.25,
+    "gemini_flash": 0.20,
+    "groq_qwen": 0.20,
+    "groq_llama": 0.20,
+    "groq_gpt": 0.15
 }
 LEARNING_RATE = 0.05
 WEIGHT_FLOOR = 0.05
 WEIGHT_CEILING = 0.40
 
 class WeightManager:
+    """
+    Manages model weights for the MMCI scoring system.
+    
+    Handles weight initialization, normalization, bounds enforcement,
+    and performance-based updates via reinforcement learning.
+    
+    Attributes:
+        _w: Dictionary mapping model_id to weight value.
+        _cw: Dictionary mapping category to weight value.
+    """
+    
     def __init__(self, weights: dict = None, category_weights: dict = None):
         # Always get defaults
         w_cfg, cw_cfg = load_config_weights()

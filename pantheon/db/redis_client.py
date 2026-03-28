@@ -1,18 +1,26 @@
 import redis.asyncio as redis
-from pantheon.config.settings import settings
+
 from loguru import logger
+
+from pantheon.config.settings import settings
 
 # Global Redis pool
 redis_client: redis.Redis = None
 
 async def init_redis():
-    """Initializes the global Redis connection pool."""
+    """Initializes the global Redis connection pool with production-ready configuration."""
     global redis_client
     try:
         redis_client = redis.from_url(
             settings.REDIS_URL,
             encoding="utf-8",
-            decode_responses=True
+            decode_responses=True,
+            # Connection pool configuration for production
+            max_connections=50,          # Maximum concurrent connections
+            socket_timeout=5.0,          # Socket timeout in seconds
+            socket_connect_timeout=5.0,  # Connection timeout in seconds
+            retry_on_timeout=True,       # Retry on socket timeout
+            health_check_interval=30,    # Health check every 30 seconds
         )
         # Test connection
         await redis_client.ping()

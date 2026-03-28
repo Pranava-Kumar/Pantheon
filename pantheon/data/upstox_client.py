@@ -1,10 +1,15 @@
 import os
 import contextlib
 import datetime
+import json
+import time
+from pathlib import Path
 import pandas as pd
 import yfinance as yf
 from loguru import logger
 import upstox_client
+
+from pantheon.config.settings import settings
 
 class UpstoxClient:
     def __init__(self, access_token: str):
@@ -27,10 +32,11 @@ class UpstoxClient:
         self._load_instruments()
 
     def _load_instruments(self) -> None:
-        import os
-        import json
-        cache_file = "upstox_instruments.json"
-        
+        # Use configurable cache directory
+        cache_dir = Path(settings.CACHE_DIR)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_file = str(cache_dir / "upstox_instruments.json")
+
         if os.path.exists(cache_file):
             modified = datetime.datetime.fromtimestamp(os.path.getmtime(cache_file))
             if (datetime.datetime.now() - modified).days < 1:
@@ -40,7 +46,7 @@ class UpstoxClient:
                     return
                 except Exception as e:
                     self.logger.warning(f"Failed to read instrument cache: {e}")
-                    
+
         self.logger.info("Downloading master instrument list from Upstox (cached for 24h)...")
         try:
             import requests
@@ -116,6 +122,15 @@ class UpstoxClient:
             return self._yfinance_fallback(nse_symbol, days)
 
     def get_nifty50_history(self, days: int = 250) -> pd.DataFrame:
+        """
+        Fetch historical price data for Nifty 50 index.
+        
+        Args:
+            days: Number of days of historical data to fetch (default: 250).
+            
+        Returns:
+            DataFrame with 'date' and 'close' columns for Nifty 50.
+        """
         instrument_key = "NSE_INDEX|Nifty 50"
         nse_symbol = "^NSEI"
         
@@ -221,7 +236,73 @@ class UpstoxClient:
     def get_instrument_key(self, nse_symbol: str) -> str:
         if nse_symbol in self._instrument_map:
             return self._instrument_map[nse_symbol]
-            
-        # Return a silent flag enforcing direct yfinance override 
+
+        # Return a silent flag enforcing direct yfinance override
         # to block API traces and noisy ERROR logging dumps
         return f"YFINANCE_ONLY|{nse_symbol}"
+
+    def get_batch_prices(self, instrument_keys: list[str]) -> dict[str, float]:
+        """
+        Fetch current prices for multiple instruments in a single batch request.
+        Includes retry logic with exponential backoff for transient failures.
+
+        Args:
+            instrument_keys: List of instrument keys to fetch prices for.
+                Maximum 100 keys per batch (Upstox API limit).
+
+        Returns:
+            dict: Mapping of instrument_key -> last_price.
+        """
+        if not instrument_keys:
+            return {}
+
+        # Enforce Upstox API batch size limit
+        MAX_BATCH_SIZE = 100
+        if len(instrument_keys) > MAX_BATCH_SIZE:
+            self.logger.warning(f"Batch size {len(instrument_keys)} exceeds limit {MAX_BATCH_SIZE}, chunking...")
+            # Process in chunks and merge results
+            all_prices = {}
+            for i in range(0, len(instrument_keys), MAX_BATCH_SIZE):
+                chunk = instrument_keys[i:i + MAX_BATCH_SIZE]
+                chunk_prices = self._get_batch_prices_chunk(chunk)
+                all_prices.update(chunk_prices)
+            return all_prices
+
+        return self._get_batch_prices_chunk(instrument_keys)
+
+    def _get_batch_prices_chunk(self, instrument_keys: list[str]) -> dict[str, float]:
+        """Fetch prices for a single batch (max 100 instruments)."""
+        # Retry with exponential backoff for transient failures
+        max_retries = 3
+        base_delay = 0.5  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                # Upstox MarketQuoteApi supports batch LTP requests
+                res = self.market_quote_api.get_quotes(instrument_keys=instrument_keys, api_version="2.0")
+                prices = {}
+                if res and res.data:
+                    for key, quote in res.data.items():
+                        if quote and hasattr(quote, 'last_price'):
+                            prices[key] = float(quote.last_price)
+
+                # Log partial failures if any
+                if len(prices) < len(instrument_keys):
+                    missing = set(instrument_keys) - set(prices.keys())
+                    self.logger.warning(f"Batch price fetch: {len(missing)} instruments missing: {missing}")
+
+                return prices
+
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    self.logger.warning(f"Batch price fetch failed (attempt {attempt + 1}/{max_retries}), retrying in {delay}s: {e}")
+                    # Note: time.sleep is acceptable here since Upstox SDK is synchronous
+                    # and this method runs in a thread pool when called from async context
+                    time.sleep(delay)
+                else:
+                    self.logger.error(f"Batch price fetch failed after {max_retries} attempts: {e}")
+                    # Return empty dict - caller will fall back to individual requests
+                    return {}
+
+        return {}
