@@ -6,15 +6,18 @@ from pantheon.data.upstox_client import UpstoxClient
 from pantheon.data.nse_client import NSEClient
 from pantheon.data.screener_client import ScreenerClient
 from pantheon.data.news_client import NewsClient
+from pantheon.data.nse_sector_client import NSESectorClient
 from pantheon.data.indicators import compute_indicators
 
 class ContextBuilder:
-    def __init__(self, upstox: UpstoxClient, nse: NSEClient, 
-                 screener: ScreenerClient, news: NewsClient):
+    def __init__(self, upstox: UpstoxClient, nse: NSEClient,
+                 screener: ScreenerClient, news: NewsClient,
+                 sector: NSESectorClient = None):
         self.upstox = upstox
         self.nse = nse
         self.screener = screener
         self.news = news
+        self.sector = sector or NSESectorClient()
         self.logger = logger.bind(name="ContextBuilder")
 
     async def build(self, symbol: str, company_name: str, 
@@ -67,6 +70,11 @@ class ContextBuilder:
             "bulk_deals": nse_result.get('bulk_deals', []),
             "fii_net_cash": nse_result.get('fii_net_cash', 0.0),
             "dii_net_cash": nse_result.get('dii_net_cash', 0.0),
+
+            # Sector analysis
+            "sector": sector,
+            "sector_performance": self.sector.get_all_sector_performance(),
+            "sector_rotation": self.sector.get_sector_rotation_signal(),
 
             "news": news_items[:15] if news_items else [],
             "news_count": len(news_items) if news_items else 0,

@@ -8,6 +8,7 @@ from pantheon.data.upstox_client import UpstoxClient
 from pantheon.data.nse_client import NSEClient
 from pantheon.data.screener_client import ScreenerClient
 from pantheon.data.news_client import NewsClient
+from pantheon.data.nse_sector_client import NSESectorClient
 from pantheon.data.context_builder import ContextBuilder
 from pantheon.data.market_regime import detect_market_regime
 from pantheon.db.session import SessionLocal, init_db
@@ -71,7 +72,8 @@ async def run_daily_analysis(symbols: list[str] | None = None) -> list[dict]:
     nse      = NSEClient()
     screener = ScreenerClient(settings.SCREENER_EMAIL, settings.SCREENER_PASSWORD)
     news     = NewsClient()
-    builder  = ContextBuilder(upstox, nse, screener, news)
+    sector   = NSESectorClient()
+    builder  = ContextBuilder(upstox, nse, screener, news, sector)
     graph    = build_graph()
 
     regime = await detect_market_regime(upstox)
