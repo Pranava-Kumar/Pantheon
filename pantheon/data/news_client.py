@@ -8,12 +8,22 @@ from loguru import logger
 from pantheon.config.settings import settings
 
 RSS_FEEDS = [
+    # Major Business Dailies
     "https://economictimes.indiatimes.com/markets/rss.cms",
     "https://www.moneycontrol.com/rss/business.xml",
     "https://www.business-standard.com/rss/markets-104.rss",
     "https://www.livemint.com/rss/markets",
+    "https://www.financialexpress.com/market/feed/",
+    
+    # TV News Channels
     "https://ndtvprofit.com/business/feed",
-    "https://www.financialexpress.com/market/feed/"
+    "https://www.cnbctv18.com/market/rss.xml",
+    "https://www.zeebiz.com/rss/market",
+    "https://www.tv9hindi.com/business/rss",
+    
+    # Specialized Finance
+    "https://www.bloombergquint.com/markets.rss",
+    "https://www.reutersagency.com/feed/?best-topics=markets&post_type=best",
 ]
 
 async def _fetch_feed_with_timeout(session: aiohttp.ClientSession, url: str, timeout: int = 10) -> str:

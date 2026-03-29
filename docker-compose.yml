@@ -1,0 +1,101 @@
+# Docker Compose for Project Pantheon
+# Free tier deployment configuration
+
+version: '3.8'
+
+services:
+  # API Server
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./pantheon.db}
+      - DATABASE_URL_ASYNC=${DATABASE_URL_ASYNC:-sqlite+aiosqlite:///./pantheon.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
+      - SCREENER_EMAIL=${SCREENER_EMAIL}
+      - SCREENER_PASSWORD=${SCREENER_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    volumes:
+      - ./pantheon.db:/app/pantheon.db  # Persist SQLite database
+      - ./cache:/app/cache  # Persist cache files
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+
+  # Dashboard (Streamlit)
+  dashboard:
+    build: .
+    command: streamlit run pantheon/dashboard/app.py --server.address=0.0.0.0 --server.port=8501
+    ports:
+      - "8501:8501"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./pantheon.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+
+  # Background Worker (Daily Analysis)
+  worker:
+    build: .
+    command: python -m pantheon.jobs.daily_analysis
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./pantheon.db}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
+      - UPSTOX_API_KEY=${UPSTOX_API_KEY}
+      - SCREENER_EMAIL=${SCREENER_EMAIL}
+      - SCREENER_PASSWORD=${SCREENER_PASSWORD}
+    depends_on:
+      - api
+      - redis
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+
+  # Redis (Cache & Rate Limiting)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    networks:
+      - pantheon-network
+
+  # Optional: PostgreSQL (instead of SQLite)
+  # Uncomment for production use with Neon or other PostgreSQL provider
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     - POSTGRES_USER=pantheon
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pantheon_password}
+  #     - POSTGRES_DB=pantheon
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+  #   networks:
+  #     - pantheon-network
+
+volumes:
+  redis_data:
+  # postgres_data:
+
+networks:
+  pantheon-network:
+    driver: bridge

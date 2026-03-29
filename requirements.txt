@@ -12,6 +12,7 @@ beautifulsoup4
 requests
 httpx
 aiohttp>=3.9.0
+ollama  # Free local LLM (Ollama)
 streamlit
 sqlalchemy
 psycopg2-binary

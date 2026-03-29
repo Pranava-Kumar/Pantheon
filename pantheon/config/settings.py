@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str
     MISTRAL_API_KEY: str = ""
     SAMBANOVA_API_KEY: str = ""
+    HUGGINGFACE_API_KEY: str = ""  # Free tier: 30 req/hour
 
     # Upstox
     UPSTOX_API_KEY: str = ""
