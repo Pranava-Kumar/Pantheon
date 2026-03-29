@@ -15,7 +15,7 @@ from typing import Optional
 from loguru import logger
 
 from pantheon.extractors.base import BaseExtractor, ModelSignal
-from pantheon.mmci.models import Direction, Timeframe
+from pantheon.mmci.models import Direction
 
 
 class OllamaLlamaExtractor(BaseExtractor):
