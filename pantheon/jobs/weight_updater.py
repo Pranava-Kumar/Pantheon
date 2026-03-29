@@ -27,34 +27,114 @@ class BatchCircuitBreaker:
     Circuit breaker for batch price fetching to prevent repeated API failures.
     
     Uses asyncio.Lock for thread-safe state modifications.
-    """
     
+    Metrics tracked:
+    - failure_count: Current consecutive failures
+    - trip_count: Total number of times circuit has tripped
+    - total_requests: Total API requests made
+    - failed_requests: Total failed requests
+    - success_rate: Percentage of successful requests
+    - failure_history: Last 100 failures for analysis
+    """
+
     def __init__(self):
         self.failure_count = 0
         self.failure_threshold = 3  # Skip batch after 3 consecutive failures
         self.cooldown_seconds = 300  # 5 minute cooldown after threshold reached
         self.last_failure_time: datetime | None = None
         self._lock = asyncio.Lock()
-    
+        
+        # Metrics for monitoring
+        self.trip_count = 0  # Total circuit trips
+        self.total_requests = 0
+        self.failed_requests = 0
+        self.success_rate = 100.0
+        self.failure_history = []  # Last 100 failures
+        self.metrics_history = []  # Last 1000 data points for trending
+
     async def is_open(self) -> bool:
         """Check if circuit breaker is open (should skip batch)."""
         async with self._lock:
-            if self.last_failure_time is None:
-                return False
-            elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
-            return elapsed < self.cooldown_seconds
-    
+            self.total_requests += 1
+            # Circuit is open if we've reached the failure threshold and are in cooldown
+            if self.failure_count >= self.failure_threshold:
+                if self.last_failure_time is None:
+                    return False
+                elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
+                return elapsed < self.cooldown_seconds
+            return False
+
     async def record_success(self):
         """Record successful batch fetch, reset failure count."""
         async with self._lock:
             self.failure_count = 0
-    
-    async def record_failure(self):
-        """Record failed batch fetch, increment failure count."""
+            self._update_metrics()
+
+    async def record_failure(self, error: str = ""):
+        """
+        Record failed batch fetch, increment failure count.
+        
+        Args:
+            error: Error message for debugging
+        """
         async with self._lock:
             self.failure_count += 1
+            self.failed_requests += 1
+            self.total_requests += 1
             self.last_failure_time = datetime.now(timezone.utc)
-            return self.failure_count
+            
+            # Track failure in history (keep last 100)
+            self.failure_history.append({
+                'timestamp': self.last_failure_time.isoformat(),
+                'error': error[:200],  # Truncate long errors
+                'failure_count': self.failure_count,
+            })
+            if len(self.failure_history) > 100:
+                self.failure_history.pop(0)
+            
+            # Check if we should trip the circuit
+            if self.failure_count >= self.failure_threshold:
+                self.trip_count += 1
+                self.failure_count = 0  # Reset after trip
+            
+            self._update_metrics()
+    
+    def _update_metrics(self):
+        """Update success rate and metrics history."""
+        if self.total_requests > 0:
+            self.success_rate = (
+                (self.total_requests - self.failed_requests) / self.total_requests
+            ) * 100
+        
+        # Track metrics for trending (keep last 1000)
+        self.metrics_history.append({
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'success_rate': self.success_rate,
+            'failure_count': self.failure_count,
+            'trip_count': self.trip_count,
+        })
+        if len(self.metrics_history) > 1000:
+            self.metrics_history.pop(0)
+    
+    def get_metrics(self) -> dict:
+        """Get current circuit breaker metrics for dashboard."""
+        return {
+            'failure_count': self.failure_count,
+            'failure_threshold': self.failure_threshold,
+            'trip_count': self.trip_count,
+            'total_requests': self.total_requests,
+            'failed_requests': self.failed_requests,
+            'success_rate': round(self.success_rate, 2),
+            'cooldown_remaining': self._get_cooldown_remaining(),
+            'is_open': self.failure_count >= self.failure_threshold,
+        }
+    
+    def _get_cooldown_remaining(self) -> float:
+        """Get remaining cooldown time in seconds."""
+        if self.last_failure_time is None:
+            return 0.0
+        elapsed = (datetime.now(timezone.utc) - self.last_failure_time).total_seconds()
+        return max(0, self.cooldown_seconds - elapsed)
 
 
 # Global circuit breaker instance for batch price fetching
@@ -187,10 +267,11 @@ async def _process_update_for_date(target_date: date) -> dict:
                     # Reset failure count on success
                     await batch_circuit_breaker.record_success()
                 except Exception as e:
-                    failure_count = await batch_circuit_breaker.record_failure()
-                    logger.error(f"Batch price fetch failed ({failure_count}/{batch_circuit_breaker.failure_threshold}), falling back to individual requests: {e}")
-                    if failure_count >= batch_circuit_breaker.failure_threshold:
-                        logger.warning(f"Batch circuit breaker triggered, will retry after {batch_circuit_breaker.cooldown_seconds}s")
+                    await batch_circuit_breaker.record_failure(error=str(e))
+                    metrics = batch_circuit_breaker.get_metrics()
+                    logger.error(f"Batch price fetch failed ({metrics['failure_count']}/{batch_circuit_breaker.failure_threshold}), falling back to individual requests: {e}")
+                    if metrics['trip_count'] > 0:
+                        logger.warning(f"Batch circuit breaker tripped! Success rate: {metrics['success_rate']:.1f}%, Cooldown: {metrics['cooldown_remaining']:.0f}s")
                     # batch_prices remains empty, will trigger individual fetches below
 
         for record in records:

@@ -3,16 +3,17 @@ from pantheon.extractors.gemini_flash import GeminiFlashExtractor
 from pantheon.extractors.groq_qwen import GroqQwenExtractor
 from pantheon.extractors.groq_llama import GroqLlamaExtractor
 from pantheon.extractors.groq_gpt import GroqGPTExtractor
-from pantheon.extractors.ollama_llama import OllamaLlamaExtractor
-from pantheon.extractors.ollama_mistral import OllamaMistralExtractor
+# Ollama models commented out - uncomment when you want to use local LLMs
+# from pantheon.extractors.ollama_llama import OllamaLlamaExtractor
+# from pantheon.extractors.ollama_mistral import OllamaMistralExtractor
 from pantheon.extractors.huggingface import HuggingFaceExtractor
 
-def get_all_extractors(include_local: bool = True, include_cloud: bool = True):
+def get_all_extractors(include_local: bool = False, include_cloud: bool = True):
     """
     Get all available LLM extractors.
     
     Args:
-        include_local: Include local Ollama models (requires Ollama installed)
+        include_local: Include local Ollama models (requires Ollama installed) - DISABLED
         include_cloud: Include cloud APIs (Gemini, Groq, HuggingFace)
     
     Returns:
@@ -31,13 +32,14 @@ def get_all_extractors(include_local: bool = True, include_cloud: bool = True):
             HuggingFaceExtractor(),
         ])
     
-    # Local extractors (100% free, no rate limits)
-    if include_local:
-        try:
-            extractors.append(OllamaLlamaExtractor())
-            extractors.append(OllamaMistralExtractor())
-        except Exception as e:
-            from loguru import logger
-            logger.warning(f"Ollama not available, skipping local models: {e}")
+    # Local extractors (100% free, no rate limits) - COMMENTED OUT
+    # Uncomment below when you want to use Ollama local models
+    # if include_local:
+    #     try:
+    #         extractors.append(OllamaLlamaExtractor())
+    #         extractors.append(OllamaMistralExtractor())
+    #     except Exception as e:
+    #         from loguru import logger
+    #         logger.warning(f"Ollama not available, skipping local models: {e}")
     
     return extractors
