@@ -106,28 +106,110 @@ def compute_fundamental_score(data: dict) -> float:
     """
     Maps fundamental data to a sentiment score (-1.0 to 1.0).
     
+    Uses a comprehensive set of fundamental metrics to evaluate company health:
+    - Profitability: ROE, ROCE
+    - Growth: Revenue growth, Profit growth
+    - Leverage: Debt to equity
+    - Valuation: PE ratio, PB ratio
+    - Ownership: Promoter holding, FII/DII holding
+    
     Args:
-        data: A dictionary containing fundamental metrics (e.g., roe, revenue_growth).
-        
+        data: A dictionary containing fundamental metrics.
+            Required (any): roe, roce, revenue_growth, profit_growth,
+                           debt_to_equity, pe_ratio, pb_ratio,
+                           promoter_pct, fii_pct, dii_pct
+
     Returns:
         A float representing the aggregate fundamental sentiment from -1.0 to 1.0.
     """
     score = 0.0
     count = 0
     
-    # Simple example logic
+    # Profitability Metrics (40% weight total)
+    # ROE: Return on Equity - measures profitability relative to shareholder equity
     roe = data.get("roe")
     if roe is not None:
-        if roe > 15: score += 0.4
-        elif roe < 8: score -= 0.4
+        if roe > 20: score += 0.25  # Excellent
+        elif roe > 15: score += 0.20  # Good
+        elif roe > 10: score += 0.10  # Average
+        elif roe < 5: score -= 0.20  # Poor
         count += 1
-        
+    
+    # ROCE: Return on Capital Employed - measures efficiency of capital use
+    roce = data.get("roce")
+    if roce is not None:
+        if roce > 20: score += 0.20  # Excellent
+        elif roce > 15: score += 0.15  # Good
+        elif roce > 10: score += 0.08  # Average
+        elif roce < 5: score -= 0.15  # Poor
+        count += 1
+    
+    # Growth Metrics (25% weight total)
+    # Revenue Growth - top-line growth
     rev_growth = data.get("revenue_growth")
     if rev_growth is not None:
-        if rev_growth > 10: score += 0.4
-        elif rev_growth < 0: score -= 0.4
+        if rev_growth > 20: score += 0.15  # Excellent growth
+        elif rev_growth > 10: score += 0.10  # Good growth
+        elif rev_growth > 5: score += 0.05  # Moderate growth
+        elif rev_growth < 0: score -= 0.15  # Declining
         count += 1
-        
+    
+    # Profit Growth - bottom-line growth
+    profit_growth = data.get("profit_growth")
+    if profit_growth is not None:
+        if profit_growth > 20: score += 0.15  # Excellent
+        elif profit_growth > 10: score += 0.10  # Good
+        elif profit_growth > 5: score += 0.05  # Moderate
+        elif profit_growth < 0: score -= 0.15  # Declining
+        count += 1
+    
+    # Leverage Metrics (15% weight)
+    # Debt to Equity - financial leverage risk
+    debt_to_equity = data.get("debt_to_equity")
+    if debt_to_equity is not None:
+        if debt_to_equity < 0.3: score += 0.15  # Very low debt
+        elif debt_to_equity < 0.5: score += 0.10  # Low debt
+        elif debt_to_equity < 1.0: score += 0.05  # Moderate debt
+        elif debt_to_equity > 2.0: score -= 0.15  # High debt risk
+        count += 1
+    
+    # Valuation Metrics (10% weight total)
+    # PE Ratio - price to earnings (lower is generally better for value)
+    pe_ratio = data.get("pe_ratio")
+    if pe_ratio is not None:
+        if 10 < pe_ratio < 20: score += 0.08  # Reasonable valuation
+        elif pe_ratio < 10: score += 0.05  # Potentially undervalued
+        elif pe_ratio > 40: score -= 0.10  # Potentially overvalued
+        count += 1
+    
+    # PB Ratio - price to book
+    pb_ratio = data.get("pb_ratio")
+    if pb_ratio is not None:
+        if 1 < pb_ratio < 3: score += 0.07  # Reasonable
+        elif pb_ratio < 1: score += 0.05  # Potentially undervalued
+        elif pb_ratio > 5: score -= 0.08  # Expensive
+        count += 1
+    
+    # Ownership Metrics (10% weight total)
+    # Promoter Holding - high promoter stake aligns interests
+    promoter_pct = data.get("promoter_pct")
+    if promoter_pct is not None:
+        if promoter_pct > 60: score += 0.08  # High promoter confidence
+        elif promoter_pct > 40: score += 0.05  # Moderate
+        elif promoter_pct < 20: score -= 0.08  # Low promoter stake
+        count += 1
+    
+    # FII/DII Holding - institutional confidence
+    fii_pct = data.get("fii_pct")
+    dii_pct = data.get("dii_pct")
+    institutional = (fii_pct or 0) + (dii_pct or 0)
+    if institutional > 0:
+        if institutional > 40: score += 0.07  # High institutional interest
+        elif institutional > 25: score += 0.04  # Moderate
+        elif institutional < 10: score -= 0.05  # Low institutional interest
+        count += 1
+    
+    # Normalize score to -1.0 to 1.0 range
     return round(max(-1.0, min(1.0, score)), 6) if count > 0 else 0.0
 
 def compute_total_mmci_score(technical_score: float,

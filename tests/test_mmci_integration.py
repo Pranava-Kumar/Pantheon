@@ -30,7 +30,8 @@ def test_full_mmci_pipeline_logic():
         "revenue_growth": 12.0
     }
     fund_score = compute_fundamental_score(fund_data)
-    assert fund_score == 0.8 # Based on our scoring.py logic (15% ROE -> 0.4, 10% Growth -> 0.4)
+    # Enhanced scoring: ROE 18 (>15) = +0.20, Revenue 12 (>10) = +0.10 = 0.30
+    assert fund_score == 0.3
     
     # 5. Mock Sentiment Signals
     signals = [

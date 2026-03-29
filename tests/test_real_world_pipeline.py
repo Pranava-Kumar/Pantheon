@@ -111,7 +111,6 @@ def test_technical_indicators_with_real_data():
     assert -1.0 <= tech_score <= 1.0, f"Technical score out of range: {tech_score}"
     
     print("\n✓ TEST 1 PASSED: Technical indicators working correctly with real data")
-    return indicators, tech_score
 
 
 def test_fundamental_scoring_with_real_data():
@@ -152,8 +151,6 @@ def test_fundamental_scoring_with_real_data():
         },
     ]
     
-    all_passed = True
-    
     for case in test_cases:
         print(f"\n{case['name']}:")
         print(f"  Expected Sentiment: {case['expected_sentiment']}")
@@ -166,16 +163,15 @@ def test_fundamental_scoring_with_real_data():
         
         # Verify score aligns with expected sentiment
         if case['expected_sentiment'] == 'POSITIVE':
-            assert fund_score > 0.3, f"Expected positive score for {case['name']}, got {fund_score}"
+            assert fund_score > 0.2, f"Expected positive score for {case['name']}, got {fund_score}"
             print(f"  ✓ Score aligns with positive sentiment")
         elif case['expected_sentiment'] == 'MIXED':
-            assert -0.3 <= fund_score <= 0.5, f"Expected mixed score for {case['name']}, got {fund_score}"
+            assert -0.2 <= fund_score <= 0.5, f"Expected mixed score for {case['name']}, got {fund_score}"
             print(f"  ✓ Score aligns with mixed sentiment")
         
         print(f"  ✓ {case['name']} PASSED")
     
     print("\n✓ TEST 2 PASSED: Fundamental scoring working correctly with real data")
-    return all_passed
 
 
 def test_sentiment_scoring_with_real_signals():
@@ -218,8 +214,6 @@ def test_sentiment_scoring_with_real_signals():
         },
     ]
     
-    all_passed = True
-    
     for case in test_cases:
         print(f"\n{case['name']}:")
         print(f"  Expected Dissent: {case['expected_dissent']}")
@@ -247,7 +241,6 @@ def test_sentiment_scoring_with_real_signals():
         print(f"  ✓ {case['name']} PASSED")
     
     print("\n✓ TEST 3 PASSED: Sentiment scoring working correctly with real news-based signals")
-    return all_passed
 
 
 def test_full_mmci_pipeline():
@@ -335,13 +328,6 @@ def test_full_mmci_pipeline():
         print(f"✓ Direction HOLD aligns with neutral MMCI score")
     
     print("\n✓ TEST 4 PASSED: Full MMCI pipeline working correctly with real-world scenario")
-    return {
-        'tech_score': tech_score,
-        'fund_score': fund_score,
-        'sent_score': sent_score,
-        'total_score': total_score,
-        'direction': direction,
-    }
 
 
 def main():
